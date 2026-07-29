@@ -33,6 +33,8 @@ Screenshots below are **Waydroid** (portrait Android) captures of the demo APK.
 
 `apply()` installs palette + spacing on the egui context so text fields, sliders, and combos inherit the shell. Checkboxes use a dedicated themed control (`checkbox`) with accent fill and a drawn checkmark.
 
+On **Android** (edge-to-edge NativeActivity), call `reserve_system_chrome(ctx, &theme)` once per frame **before** other panels, or use `top_header(ctx, &theme, |ui| { … })` for the app chrome. That reserves the system status bar and gesture/nav band so labels and chips cannot sit under the clock / indicators.
+
 ## Demo
 
 An interactive showcase walks through overview, typography, actions, surfaces, palette swatches, and forms (with dark/light toggle).
@@ -127,6 +129,8 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `title` / `title_2` / `body` / `dim_label` | Text roles |
 | `Theme::header_frame` / `card_frame` / `page_frame` | Layout chrome |
 | `Theme::text_edit_margin` | Inner field padding (12×8 default) |
+| `reserve_system_chrome` / `system_chrome` | Android status + nav safe areas |
+| `top_header` | Header panel with system chrome already reserved |
 
 ## License
 

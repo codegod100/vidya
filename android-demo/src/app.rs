@@ -10,7 +10,7 @@ use eframe::egui::{
 };
 use vidya::{
     apply, body, button, checkbox, destructive_button, dim_label, primary_button,
-    text_field_multiline, title, title_2, Mode, Theme,
+    reserve_system_chrome, text_field_multiline, title, title_2, Mode, Theme,
 };
 
 /// Desktop / host entry.
@@ -265,23 +265,9 @@ impl eframe::App for DemoApp {
         // Portrait phone / Waydroid: bottom chips. Landscape / desktop: side rail.
         let phone = screen.height() >= screen.width() || screen.width() < 640.0;
 
-        // Status-bar safe area (NativeActivity draws edge-to-edge; keep chrome clear of the clock).
-        let top_safe = if cfg!(target_os = "android") || phone {
-            36.0
-        } else {
-            0.0
-        };
-        if top_safe > 0.0 {
-            egui::TopBottomPanel::top("safe_top")
-                .exact_height(top_safe)
-                .frame(
-                    egui::Frame::new()
-                        .fill(p.headerbar_bg)
-                        .inner_margin(egui::Margin::ZERO),
-                )
-                .show_separator_line(false)
-                .show(ctx, |_ui| {});
-        }
+        // System status / nav bars (edge-to-edge Android) — library owns this so
+        // header and chips cannot sit under the clock or gesture bar.
+        reserve_system_chrome(ctx, &th);
 
         // ── Headerbar ──────────────────────────────────────────────
         let header_frame = th.header_frame().inner_margin(egui::Margin {
@@ -322,31 +308,6 @@ impl eframe::App for DemoApp {
                     });
                 });
             });
-
-        // Bottom panels: first call = outer screen edge.
-        // On Android, leave a dead band for the system back/home/recents bar so our
-        // chips don't cover it (edge-to-edge NativeActivity would otherwise steal taps).
-        let bottom_safe = if cfg!(target_os = "android") {
-            52.0
-        } else if phone {
-            0.0
-        } else {
-            0.0
-        };
-        if bottom_safe > 0.0 {
-            egui::TopBottomPanel::bottom("safe_bottom")
-                .exact_height(bottom_safe)
-                .frame(
-                    egui::Frame::new()
-                        .fill(p.headerbar_bg)
-                        .inner_margin(egui::Margin::ZERO),
-                )
-                .show_separator_line(false)
-                .show(ctx, |ui| {
-                    // No widgets — reserved for Android system navigation.
-                    ui.allocate_exact_size(ui.available_size(), Sense::hover());
-                });
-        }
 
         if phone {
             // ── App section chips (above system nav) ────────────────

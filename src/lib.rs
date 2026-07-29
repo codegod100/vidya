@@ -3,6 +3,10 @@
 //! Palette and spacing track GNOME HIG / libadwaita *feel* without linking GTK
 //! or using that name in the public API. Dark is the default.
 //!
+//! On Android (edge-to-edge), call [`reserve_system_chrome`] once per frame
+//! **before** other panels, or use [`top_header`] so content cannot sit under
+//! the system status / navigation bars.
+//!
 //! ```ignore
 //! use vidya::{apply_dark, Theme};
 //!
@@ -10,8 +14,10 @@
 //! if vidya::primary_button(ui, &Theme::dark(), "Open").clicked() { /* … */ }
 //! ```
 
+mod chrome;
 mod theme;
 
+pub use chrome::{reserve_system_chrome, system_chrome, top_header, SystemChrome};
 pub use theme::{
     body, button, checkbox, destructive_button, dim_label, primary_button, text_field_multiline,
     text_field_singleline, title, title_2, Mode, Palette, Spacing, Theme, TypeScale,
