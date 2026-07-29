@@ -11,10 +11,3 @@ readme = "README.md"
 
 [dependencies]
 egui = { version = "0.31", default-features = false }
-
-[dev-dependencies]
-eframe = { version = "0.31", default-features = true }
-
-[[example]]
-name = "demo"
-path = "examples/demo.rs"

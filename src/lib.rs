@@ -13,8 +13,8 @@
 mod theme;
 
 pub use theme::{
-    body, button, destructive_button, dim_label, primary_button, title, title_2, Mode, Palette,
-    Spacing, Theme, TypeScale,
+    body, button, checkbox, destructive_button, dim_label, primary_button, text_field_multiline,
+    text_field_singleline, title, title_2, Mode, Palette, Spacing, Theme, TypeScale,
 };
 
 use egui::{Context, FontFamily, FontId, Style, TextStyle};
