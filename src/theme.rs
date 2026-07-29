@@ -426,11 +426,11 @@ pub fn checkbox(ui: &mut Ui, theme: &Theme, checked: &mut bool, text: &str) -> R
         let hovered = response.hovered() && ui.is_enabled();
         let (fill, border) = if *checked {
             let fill = if hovered { p.accent_hover } else { p.accent };
-            (fill, Stroke::new(1.0, fill))
+            (fill, Stroke::new(1.0_f32, fill))
         } else if hovered {
-            (p.button_hover, Stroke::new(1.5, p.border))
+            (p.button_hover, Stroke::new(1.5_f32, p.border))
         } else {
-            (p.button_bg, Stroke::new(1.25, p.border_soft))
+            (p.button_bg, Stroke::new(1.25_f32, p.border_soft))
         };
 
         painter.rect(box_rect, radius, fill, border, StrokeKind::Inside);
@@ -445,7 +445,7 @@ pub fn checkbox(ui: &mut Ui, theme: &Theme, checked: &mut bool, text: &str) -> R
             // Slightly thicker tip stroke reads cleaner at small sizes.
             painter.add(Shape::line(
                 vec![a, b, c],
-                Stroke::new(2.15, p.accent_fg),
+                Stroke::new(2.15_f32, p.accent_fg),
             ));
         }
 
@@ -485,7 +485,7 @@ pub fn status_dot(ui: &mut Ui, theme: &Theme, live: bool) -> Response {
         if live {
             painter.circle_filled(center, radius, color);
         } else {
-            painter.circle_stroke(center, radius, Stroke::new(1.5, color));
+            painter.circle_stroke(center, radius, Stroke::new(1.5_f32, color));
         }
     }
 
