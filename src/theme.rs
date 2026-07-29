@@ -459,6 +459,39 @@ pub fn checkbox(ui: &mut Ui, theme: &Theme, checked: &mut bool, text: &str) -> R
     response
 }
 
+/// Live / offline status mark drawn with shapes.
+///
+/// **Do not** use Unicode `●` / `○` in labels on Android: egui’s default fonts
+/// often lack those glyphs and render a hollow box (“tofu”). This paints a real
+/// circle instead — filled when `live`, stroked when offline.
+pub fn status_dot(ui: &mut Ui, theme: &Theme, live: bool) -> Response {
+    let p = &theme.palette;
+    // Match body line height so the dot sits cleanly next to `body` text.
+    let line = theme.type_scale.body;
+    let diameter = (line * 0.55).clamp(7.0, 12.0);
+    let pad = 2.0;
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::new(diameter + pad * 2.0, line), Sense::hover());
+
+    if ui.is_rect_visible(rect) {
+        let center = pos2(rect.center().x, rect.center().y);
+        let radius = diameter * 0.5;
+        let color = if live {
+            p.success
+        } else {
+            p.text_secondary
+        };
+        let painter = ui.painter();
+        if live {
+            painter.circle_filled(center, radius, color);
+        } else {
+            painter.circle_stroke(center, radius, Stroke::new(1.5, color));
+        }
+    }
+
+    response
+}
+
 pub fn title(ui: &mut Ui, theme: &Theme, text: &str) {
     ui.add(
         Label::new(

@@ -1,0 +1,9 @@
+vidya-symbols.ttf is a glyph subset of DejaVu Sans.
+
+DejaVu fonts are based on the Bitstream Vera fonts, with additional
+characters. License (summary): free to use, modify, and redistribute;
+must not use Bitstream/DejaVu names to endorse derived works without
+permission. Full text: https://dejavu-fonts.github.io/License.html
+
+Generated with fonttools pyftsubset for UI punctuation/symbols only
+(arrows, bullets, dashes, quotes, check marks).

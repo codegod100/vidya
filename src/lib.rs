@@ -15,18 +15,25 @@
 //! ```
 
 mod chrome;
+mod fonts;
 mod theme;
 
 pub use chrome::{reserve_system_chrome, system_chrome, top_header, SystemChrome};
+pub use fonts::install_symbol_font;
 pub use theme::{
-    body, button, checkbox, destructive_button, dim_label, primary_button, text_field_multiline,
-    text_field_singleline, title, title_2, Mode, Palette, Spacing, Theme, TypeScale,
+    body, button, checkbox, destructive_button, dim_label, primary_button, status_dot,
+    text_field_multiline, text_field_singleline, title, title_2, Mode, Palette, Spacing, Theme,
+    TypeScale,
 };
 
 use egui::{Context, FontFamily, FontId, Style, TextStyle};
 
 /// Install palette + spacing + text styles on the egui context.
+///
+/// Also registers a small symbol-font fallback so punctuation like `→` / `●`
+/// does not render as hollow boxes on Android.
 pub fn apply(ctx: &Context, theme: &Theme) {
+    install_symbol_font(ctx);
     ctx.set_visuals(theme.visuals());
     ctx.set_style(theme.style());
 }

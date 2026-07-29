@@ -31,7 +31,7 @@ Screenshots below are **Waydroid** (portrait Android) captures of the demo APK.
 | Spacing | 4 · 6 · 12 · 18 · 24 · control height 34 |
 | Radius | 6 · 9 · 12 |
 
-`apply()` installs palette + spacing on the egui context so text fields, sliders, and combos inherit the shell. Checkboxes use a dedicated themed control (`checkbox`) with accent fill and a drawn checkmark.
+`apply()` installs palette + spacing on the egui context so text fields, sliders, and combos inherit the shell. Checkboxes use a dedicated themed control (`checkbox`) with accent fill and a drawn checkmark. It also registers a tiny **symbol font fallback** (DejaVu subset) so UI punctuation such as `→`, `●`/`○`, dashes, and curly quotes does not render as hollow boxes on Android.
 
 On **Android** (edge-to-edge NativeActivity), call `reserve_system_chrome(ctx, &theme)` once per frame **before** other panels, or use `top_header(ctx, &theme, |ui| { … })` for the app chrome. That reserves the system status bar and gesture/nav band so labels and chips cannot sit under the clock / indicators.
 
@@ -122,9 +122,11 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | Item | Role |
 |------|------|
 | `Theme::dark()` / `light()` | Palette + spacing + type scale |
-| `apply` / `apply_dark` / `apply_light` | Install on `egui::Context` |
+| `apply` / `apply_dark` / `apply_light` | Install on `egui::Context` (+ symbol font) |
+| `install_symbol_font` | Fallback glyphs for arrows / bullets / quotes |
 | `primary_button` / `button` / `destructive_button` | Styled actions |
 | `checkbox` | Accent-filled checkbox with drawn checkmark |
+| `status_dot` | Live/offline circle (drawn — no Unicode tofu on Android) |
 | `text_field_singleline` / `text_field_multiline` | Text inputs with field padding |
 | `title` / `title_2` / `body` / `dim_label` | Text roles |
 | `Theme::header_frame` / `card_frame` / `page_frame` | Layout chrome |
