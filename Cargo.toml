@@ -1,0 +1,13 @@
+[package]
+name = "vidya"
+version = "0.1.0"
+edition = "2021"
+description = "Vidya — GNOME/HIG-inspired theme layer for egui (no GTK)"
+license = "MIT"
+repository = "https://tangled.org/nandi.uk/global"
+keywords = ["egui", "theme", "gui", "vidya"]
+categories = ["gui"]
+readme = "README.md"
+
+[dependencies]
+egui = { version = "0.31", default-features = false }
