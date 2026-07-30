@@ -1,9 +1,11 @@
 //! Palette, metrics, egui Visuals/Style, and widget helpers.
 
 use egui::{
-    pos2, style::WidgetVisuals, Button, Color32, CornerRadius, CursorIcon, FontId, Frame, Label,
-    Margin, Response, RichText, Sense, Shadow, Shape, Stroke, StrokeKind, Style, TextBuffer,
-    TextEdit, Ui, Vec2, Visuals, WidgetInfo, WidgetType,
+    pos2,
+    style::{ScrollStyle, WidgetVisuals},
+    Button, Color32, CornerRadius, CursorIcon, FontId, Frame, Label, Margin, Response, RichText,
+    Sense, Shadow, Shape, Stroke, StrokeKind, Style, TextBuffer, TextEdit, Ui, Vec2, Visuals,
+    WidgetInfo, WidgetType,
 };
 
 use crate::install_text_styles;
@@ -264,6 +266,9 @@ impl Theme {
         style.spacing.icon_width = 18.0;
         style.spacing.icon_width_inner = 12.0;
         style.spacing.icon_spacing = sp.sm + 2.0;
+        // Solid gutters: floating bars sit on top of content (egui default). HIG-ish
+        // scroll areas reserve space so lists/text never sit under the thumb.
+        style.spacing.scroll = ScrollStyle::solid();
         style.interaction.tooltip_delay = 0.4;
         style.animation_time = 0.12;
         style
