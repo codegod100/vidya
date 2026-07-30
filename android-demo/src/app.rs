@@ -6,7 +6,8 @@
 use std::path::PathBuf;
 
 use eframe::egui::{
-    self, Align, Color32, Event, Layout, RichText, ScrollArea, Sense, Stroke, Vec2, ViewportCommand,
+    self, Align, Color32, CursorIcon, Event, Layout, RichText, ScrollArea, Sense, Stroke, Vec2,
+    ViewportCommand,
 };
 use vidya::{
     apply, body, button, checkbox, destructive_button, dim_label, primary_button,
@@ -439,7 +440,8 @@ impl eframe::App for DemoApp {
                                 );
                             })
                             .response
-                            .interact(Sense::click());
+                            .interact(Sense::click())
+                            .on_hover_cursor(CursorIcon::PointingHand);
 
                         if resp.hovered() && !selected {
                             ui.painter().rect_filled(

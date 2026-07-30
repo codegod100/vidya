@@ -1,9 +1,9 @@
 //! Palette, metrics, egui Visuals/Style, and widget helpers.
 
 use egui::{
-    pos2, style::WidgetVisuals, Button, Color32, CornerRadius, FontId, Frame, Label, Margin,
-    Response, RichText, Sense, Shadow, Shape, Stroke, StrokeKind, Style, TextBuffer, TextEdit, Ui,
-    Vec2, Visuals, WidgetInfo, WidgetType,
+    pos2, style::WidgetVisuals, Button, Color32, CornerRadius, CursorIcon, FontId, Frame, Label,
+    Margin, Response, RichText, Sense, Shadow, Shape, Stroke, StrokeKind, Style, TextBuffer,
+    TextEdit, Ui, Vec2, Visuals, WidgetInfo, WidgetType,
 };
 
 use crate::install_text_styles;
@@ -239,6 +239,10 @@ impl Theme {
         v.selection.bg_fill = p.accent.gamma_multiply(0.35);
         v.selection.stroke = Stroke::new(1.0_f32, p.accent);
         v.widgets = widget_visuals(p, &self.spacing);
+        // Browser-style click affordance: buttons (and apps that opt in) show a
+        // pointing-hand cursor on hover. egui defaults this to None (native toolkit
+        // style); Vidya prefers the clickable cue on desktop.
+        v.interact_cursor = Some(CursorIcon::PointingHand);
         v
     }
 
@@ -413,6 +417,10 @@ pub fn checkbox(ui: &mut Ui, theme: &Theme, checked: &mut bool, text: &str) -> R
         response.mark_changed();
     }
     response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), *checked, text));
+    // Custom widget — egui only applies `interact_cursor` on stock `Button`.
+    if let Some(cursor) = ui.visuals().interact_cursor {
+        response = response.on_hover_cursor(cursor);
+    }
 
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
