@@ -10,8 +10,8 @@ use eframe::egui::{
     ViewportCommand,
 };
 use vidya::{
-    apply, body, button, checkbox, destructive_button, dim_label, primary_button,
-    reserve_system_chrome, text_field_multiline, title, title_2, Mode, Theme,
+    apply, body, button, checkbox, destructive_button, dim_label, emoji_icon, emoji_pack_len, icon,
+    primary_button, reserve_system_chrome, text_field_multiline, title, title_2, Icon, Mode, Theme,
 };
 
 /// Desktop / host entry.
@@ -696,6 +696,39 @@ impl DemoApp {
                 status_pill(ui, th, "Warning", th.palette.warning);
                 status_pill(ui, th, "Error", th.palette.destructive);
                 status_pill(ui, th, "Accent", th.palette.accent);
+            });
+        });
+
+        ui.add_space(th.spacing.md);
+
+        card(ui, th, |ui| {
+            title_2(ui, th, "Emoji icons (full Twemoji)");
+            ui.add_space(th.spacing.sm);
+            dim_label(
+                ui,
+                th,
+                &format!(
+                    "{} color glyphs embedded — any emoji maps by codepoint (flags, ZWJ, skin tones).",
+                    emoji_pack_len()
+                ),
+            );
+            ui.add_space(th.spacing.md);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                for e in [
+                    "👍", "❤️", "😂", "😮", "😢", "👎", "🚀", "🎉", "🔥", "✨", "👀", "💯", "🙏",
+                    "😎", "🤯", "👨‍💻", "🏳️‍🌈", "🐱",
+                ] {
+                    emoji_icon(ui, th, e, 26.0);
+                }
+            });
+            ui.add_space(th.spacing.sm);
+            ui.horizontal(|ui| {
+                dim_label(ui, th, "named shortcuts:");
+                ui.add_space(th.spacing.sm);
+                for ic in Icon::EMOJI {
+                    icon(ui, th, *ic, 22.0);
+                }
             });
         });
     }

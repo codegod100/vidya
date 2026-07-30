@@ -16,10 +16,16 @@
 
 mod chrome;
 mod fonts;
+mod icons;
 mod theme;
 
 pub use chrome::{reserve_system_chrome, system_chrome, top_header, SystemChrome};
 pub use fonts::install_symbol_font;
+pub use icons::{
+    emoji_icon, emoji_icon_colored, emoji_pack_len, has_emoji_icon, icon, icon_colored,
+    icon_for_emoji, normalize_emoji, paint_emoji_in, paint_icon, paint_icon_in, reaction_chip,
+    twemoji_key, Icon,
+};
 pub use theme::{
     body, button, checkbox, destructive_button, dim_label, primary_button, status_dot,
     text_field_multiline, text_field_singleline, title, title_2, Mode, Palette, Spacing, Theme,

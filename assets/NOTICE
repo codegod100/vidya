@@ -7,3 +7,12 @@ permission. Full text: https://dejavu-fonts.github.io/License.html
 
 Generated with fonttools pyftsubset for UI punctuation/symbols only
 (arrows, bullets, dashes, quotes, check marks).
+
+---
+
+Color emoji pack `assets/emoji/twemoji-72x72.zip` is from Twemoji
+(https://github.com/jdecked/twemoji), Copyright Twitter, Inc. and other
+contributors. Licensed under Creative Commons Attribution 4.0 International
+(CC-BY 4.0): https://creativecommons.org/licenses/by/4.0/
+
+Graphics adapted for embedding; attribution required.

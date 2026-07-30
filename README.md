@@ -33,6 +33,8 @@ Screenshots below are **Waydroid** (portrait Android) captures of the demo APK.
 
 `apply()` installs palette + spacing on the egui context so text fields, sliders, and combos inherit the shell. Checkboxes use a dedicated themed control (`checkbox`) with accent fill and a drawn checkmark. It also registers a tiny **symbol font fallback** (DejaVu subset) so UI punctuation such as `→`, `●`/`○`, dashes, and curly quotes does not render as hollow boxes on Android.
 
+**Emoji → color icons:** the full **Twemoji** 72×72 set (~3.8k glyphs) is embedded. Any reaction (flags, ZWJ sequences, skin tones) resolves via `emoji_icon` / `paint_emoji_in` / `reaction_chip`. Prefer these over raw Unicode on Android — egui’s default fonts only ship monochrome Noto Emoji.
+
 On **Android** (edge-to-edge NativeActivity), call `reserve_system_chrome(ctx, &theme)` once per frame **before** other panels, or use `top_header(ctx, &theme, |ui| { … })` for the app chrome. That reserves the system status bar and gesture/nav band so labels and chips cannot sit under the clock / indicators.
 
 ## Demo
@@ -124,6 +126,9 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `Theme::dark()` / `light()` | Palette + spacing + type scale |
 | `apply` / `apply_dark` / `apply_light` | Install on `egui::Context` (+ symbol font) |
 | `install_symbol_font` | Fallback glyphs for arrows / bullets / quotes |
+| `emoji_icon` / `paint_emoji_in` / `has_emoji_icon` | Full Twemoji color set by codepoint |
+| `Icon` / `icon` / `paint_icon_in` | Named shortcuts + stroke Plus |
+| `reaction_chip` | Themed count chip with color emoji |
 | `primary_button` / `button` / `destructive_button` | Styled actions |
 | `checkbox` | Accent-filled checkbox with drawn checkmark |
 | `status_dot` | Live/offline circle (drawn — no Unicode tofu on Android) |

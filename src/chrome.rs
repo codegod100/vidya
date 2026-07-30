@@ -35,17 +35,29 @@ impl SystemChrome {
 /// Platform defaults for edge-to-edge drawing.
 ///
 /// Values match common gesture-nav phones (≈24–36 dp status, ≈48 dp nav).
-/// Override later if/when real `WindowInsets` are plumbed through egui.
-pub fn system_chrome(_ctx: &Context) -> SystemChrome {
+/// When a text field holds focus (`Context::wants_keyboard_input`), the bottom
+/// inset grows so bottom bars / compose fields sit **above** the soft keyboard
+/// (NativeActivity rarely resizes the GL surface for IME).
+pub fn system_chrome(ctx: &Context) -> SystemChrome {
     #[cfg(target_os = "android")]
     {
-        SystemChrome {
-            top: 36.0,
-            bottom: 48.0,
+        let top = 36.0;
+        // Gesture / 3-button nav when the keyboard is hidden.
+        let mut bottom = 48.0;
+        if ctx.wants_keyboard_input() {
+            // Soft keyboards are typically ~35–45% of portrait height. Pad that
+            // much under all UI so TopBottomPanel compose / tabs clear the IME.
+            // (Seen on Pixel: ime inset ≈ 988px on a 2400px-tall display.)
+            let h = ctx.screen_rect().height();
+            bottom = (h * 0.40).clamp(240.0, h * 0.52);
+            // Keep animating a few frames while the keyboard slides in/out.
+            ctx.request_repaint();
         }
+        SystemChrome { top, bottom }
     }
     #[cfg(not(target_os = "android"))]
     {
+        let _ = ctx;
         SystemChrome::ZERO
     }
 }
