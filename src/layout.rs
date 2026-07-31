@@ -351,6 +351,7 @@ pub enum ColSpec {
 }
 
 impl ColSpec {
+    /// Desired / minimum width for fixed metric columns; `None` = flex.
     pub fn px(self, theme: &Theme) -> Option<f32> {
         match self {
             ColSpec::Flex => None,
@@ -361,15 +362,82 @@ impl ColSpec {
     }
 }
 
+/// Minimum width (px) reserved for a flex column when distributing space.
+pub const FLEX_COL_MIN_PX: f32 = 48.0;
+
+/// Distribute per-column **max** widths so `sum(widths) + gaps ≤ avail`.
+///
+/// - Fixed specs (`Some(w)`) keep `w` when the budget allows; otherwise they
+///   scale down proportionally after flex mins are reserved.
+/// - Flex specs (`None`) share the remaining budget equally (each ≥ [`FLEX_COL_MIN_PX`]
+///   when possible).
+///
+/// Pure policy — unit-tested without a window.
+pub fn distribute_col_max(specs: &[Option<f32>], avail: f32, gap: f32) -> Vec<f32> {
+    let n = specs.len().max(1);
+    let gaps = gap * (n.saturating_sub(1) as f32);
+    let budget = (avail.max(1.0) - gaps).max(1.0);
+
+    // No explicit specs → equal flex slices.
+    if specs.is_empty() {
+        return vec![budget / n as f32; n];
+    }
+
+    let flex_n = specs.iter().filter(|s| s.is_none()).count();
+    let fixed_sum: f32 = specs.iter().filter_map(|s| *s).sum();
+
+    if flex_n == 0 {
+        if fixed_sum <= budget {
+            return specs.iter().map(|s| s.unwrap_or(0.0)).collect();
+        }
+        let scale = budget / fixed_sum.max(1.0);
+        return specs.iter().map(|s| s.unwrap_or(0.0) * scale).collect();
+    }
+
+    let flex_floor = FLEX_COL_MIN_PX * flex_n as f32;
+    let fixed_budget = if fixed_sum + flex_floor <= budget {
+        fixed_sum
+    } else {
+        (budget - flex_floor).max(0.0)
+    };
+    let fixed_scale = if fixed_sum > fixed_budget && fixed_sum > 0.0 {
+        fixed_budget / fixed_sum
+    } else {
+        1.0
+    };
+
+    let mut out = vec![0.0_f32; n];
+    let mut used_fixed = 0.0_f32;
+    for (i, s) in specs.iter().enumerate() {
+        if let Some(w) = s {
+            out[i] = (*w * fixed_scale).max(1.0);
+            used_fixed += out[i];
+        }
+    }
+    let flex_each = ((budget - used_fixed) / flex_n as f32).max(1.0);
+    for (i, s) in specs.iter().enumerate() {
+        if s.is_none() {
+            out[i] = flex_each;
+        }
+    }
+    out
+}
+
 /// Live grid session (inside `egui::Grid`).
 pub struct GridCtx<'ui, 'th> {
     ui: &'ui mut Ui,
     theme: &'th Theme,
-    /// Resolved min widths per column (`None` = flex).
+    /// Desired floors for fixed columns (`None` = flex).
     col_widths: Vec<Option<f32>>,
+    /// Hard max width per column so the grid fits the residual viewport.
+    col_max: Vec<f32>,
 }
 
 /// Grid with explicit column specs (recommended for metric tables).
+///
+/// The grid container is pinned to `ui.available_width()` so it cannot grow
+/// past the parent / viewport residual. Column max widths are distributed via
+/// [`distribute_col_max`].
 pub fn grid_cols(
     ui: &mut Ui,
     theme: &Theme,
@@ -377,24 +445,38 @@ pub fn grid_cols(
     cols: &[ColSpec],
     mut add: impl FnMut(&mut GridCtx<'_, '_>),
 ) {
-    // When no specs are given, pick a high column count so free-form rows fit.
+    let avail = ui.available_width().max(1.0);
     let n = if cols.is_empty() { 16 } else { cols.len() };
     let col_widths: Vec<Option<f32>> = cols.iter().map(|c| c.px(theme)).collect();
     let spacing = Vec2::new(theme.spacing.md, 2.0);
+    let col_max = if cols.is_empty() {
+        distribute_col_max(&vec![None; n], avail, spacing.x)
+    } else {
+        distribute_col_max(&col_widths, avail, spacing.x)
+    };
+    let cell_max = col_max.iter().copied().fold(40.0_f32, f32::max);
 
-    Grid::new(id)
-        .num_columns(n)
-        .spacing(spacing)
-        .min_col_width(40.0)
-        .striped(true)
-        .show(ui, |ui| {
-            let mut ctx = GridCtx {
-                ui,
-                theme,
-                col_widths,
-            };
-            add(&mut ctx);
-        });
+    // Pin the container; Grid cells still respect per-column max via RowDsl.
+    ui.scope(|ui| {
+        ui.set_max_width(avail);
+        Grid::new(id)
+            .num_columns(n)
+            .spacing(spacing)
+            .min_col_width(24.0)
+            .max_col_width(cell_max)
+            .striped(true)
+            .show(ui, |ui| {
+                // Re-assert: grid child ui also must not expand past residual.
+                ui.set_max_width(avail);
+                let mut ctx = GridCtx {
+                    ui,
+                    theme,
+                    col_widths,
+                    col_max,
+                };
+                add(&mut ctx);
+            });
+    });
 }
 
 /// Grid with all-flex columns. Prefer [`grid_cols`] when you have metrics.
@@ -415,6 +497,7 @@ impl<'ui, 'th> GridCtx<'ui, 'th> {
             ui: self.ui,
             theme: self.theme,
             col_widths: &self.col_widths,
+            col_max: &self.col_max,
             col_i: &mut col_i,
         };
         add(&mut row);
@@ -436,6 +519,7 @@ pub struct RowDsl<'ui, 'th> {
     ui: &'ui mut Ui,
     theme: &'th Theme,
     col_widths: &'ui [Option<f32>],
+    col_max: &'ui [f32],
     col_i: &'ui mut usize,
 }
 
@@ -448,76 +532,91 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
         self.col_widths.get(*self.col_i).copied().flatten()
     }
 
-    fn metric_width(&self) -> f32 {
-        self.width_hint()
-            .unwrap_or_else(|| metric_cell_px(self.theme, METRIC_BPS_CHARS))
+    /// Hard max for this column (viewport residual budget).
+    fn col_max(&self) -> f32 {
+        self.col_max
+            .get(*self.col_i)
+            .copied()
+            .unwrap_or(self.ui.available_width().max(1.0))
     }
 
-    /// Free-form cell.
+    fn metric_width(&self) -> f32 {
+        let floor = self
+            .width_hint()
+            .unwrap_or_else(|| metric_cell_px(self.theme, METRIC_BPS_CHARS));
+        floor.min(self.col_max()).max(1.0)
+    }
+
+    /// Free-form cell, capped to the column max width.
     pub fn cell(&mut self, add: impl FnOnce(&mut Ui)) {
-        add(self.ui);
+        let max_w = self.col_max();
+        self.ui.scope(|ui| {
+            ui.set_max_width(max_w);
+            add(ui);
+        });
         self.advance();
     }
 
-    /// Column header (caption, strong, secondary). Metric cols right-align
-    /// and are at least as wide as the header text.
+    /// Column header (caption, strong, secondary). Capped to column max.
     pub fn heading(&mut self, text: &str) {
         let size = self.theme.type_scale.caption;
+        let max_w = self.col_max();
         let rt = RichText::new(text)
             .size(size)
             .strong()
             .color(self.theme.palette.text_secondary);
-        if let Some(hint) = self.width_hint() {
-            let need = measure_text(self.ui, text, size, false) + self.theme.spacing.sm;
-            let width = hint.max(need);
-            self.ui.allocate_ui_with_layout(
-                Vec2::new(width, size + 6.0),
-                Layout::right_to_left(Align::Center),
-                |ui| {
-                    ui.set_min_width(width);
-                    ui.add(egui::Label::new(rt.clone()).extend());
-                },
-            );
+        let need = measure_text(self.ui, text, size, false) + self.theme.spacing.sm;
+        let width = if let Some(hint) = self.width_hint() {
+            hint.max(need).min(max_w)
         } else {
-            self.ui.add(egui::Label::new(rt).extend());
-        }
+            need.min(max_w)
+        };
+        self.ui.allocate_ui_with_layout(
+            Vec2::new(width.max(1.0), size + 6.0),
+            Layout::right_to_left(Align::Center),
+            |ui| {
+                ui.set_max_width(width.max(1.0));
+                ui.add(egui::Label::new(rt).truncate());
+            },
+        );
         self.advance();
     }
 
-    /// Primary body text (flex) — sizes to content (no truncate).
+    /// Primary body text (flex) — truncates within column max.
     pub fn text(&mut self, text: &str) {
-        table_text(self.ui, self.theme, text, true);
+        table_text_capped(self.ui, self.theme, text, true, self.col_max());
         self.advance();
     }
 
-    /// Secondary caption text (flex) — sizes to content.
+    /// Secondary caption text (flex) — truncates within column max.
     pub fn dim(&mut self, text: &str) {
-        table_text(self.ui, self.theme, text, false);
+        table_text_capped(self.ui, self.theme, text, false, self.col_max());
         self.advance();
     }
 
     /// Warning-colored strong caption (e.g. anomaly process name).
     pub fn warn(&mut self, text: &str) {
+        let max_w = self.col_max();
         let rt = RichText::new(text)
             .size(self.theme.type_scale.caption)
             .strong()
             .color(self.theme.palette.warning);
-        self.ui.add(egui::Label::new(rt).extend());
+        self.ui.scope(|ui| {
+            ui.set_max_width(max_w);
+            ui.add(egui::Label::new(rt).truncate());
+        });
         self.advance();
     }
 
     /// Right-aligned monospace metric (`text` from [`metric_bps`] / [`metric_rate`]).
-    /// Width is at least the column hint **and** the painted string.
     pub fn metric(&mut self, text: &str) {
-        let w = self.metric_width();
-        metric_cell(self.ui, self.theme, w, text, false);
+        metric_cell(self.ui, self.theme, self.metric_width(), text, false);
         self.advance();
     }
 
     /// Secondary (dim) metric.
     pub fn metric_dim(&mut self, text: &str) {
-        let w = self.metric_width();
-        metric_cell(self.ui, self.theme, w, text, true);
+        metric_cell(self.ui, self.theme, self.metric_width(), text, true);
         self.advance();
     }
 
@@ -525,7 +624,9 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
     pub fn metric_bps(&mut self, bps: f64) {
         let w = self
             .width_hint()
-            .unwrap_or_else(|| metric_cell_px(self.theme, METRIC_BPS_CHARS));
+            .unwrap_or_else(|| metric_cell_px(self.theme, METRIC_BPS_CHARS))
+            .min(self.col_max())
+            .max(1.0);
         metric_cell(self.ui, self.theme, w, &metric_bps(bps), false);
         self.advance();
     }
@@ -534,7 +635,9 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
     pub fn metric_rate(&mut self, rate: f64) {
         let w = self
             .width_hint()
-            .unwrap_or_else(|| metric_cell_px(self.theme, METRIC_RATE_CHARS));
+            .unwrap_or_else(|| metric_cell_px(self.theme, METRIC_RATE_CHARS))
+            .min(self.col_max())
+            .max(1.0);
         metric_cell(self.ui, self.theme, w, &metric_rate(rate), true);
         self.advance();
     }
@@ -564,12 +667,11 @@ pub fn measure_mono_caption(ui: &Ui, theme: &Theme, text: &str) -> f32 {
 
 /// Paint a monospace metric string, right-edge aligned.
 ///
-/// Allocated width is `max(min_width, measured text + padding)` so columns
-/// always fit their content even when the ColSpec floor is tight.
+/// `min_width` is the cell size (from ColSpec floor, clamped by
+/// [`distribute_col_max`] to the residual viewport). Text is clip-rect'd so it
+/// never paints past the cell.
 pub fn metric_cell(ui: &mut Ui, theme: &Theme, min_width: f32, text: &str, secondary: bool) {
-    let pad = theme.spacing.sm + theme.spacing.xs.max(2.0);
-    let text_w = measure_mono_caption(ui, theme, text);
-    let width = min_width.max(text_w + pad).max(1.0);
+    let width = min_width.max(1.0);
     let h = theme.type_scale.caption + 8.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, h), Sense::hover());
     if !ui.is_rect_visible(rect) {
@@ -581,9 +683,9 @@ pub fn metric_cell(ui: &mut Ui, theme: &Theme, min_width: f32, text: &str, secon
         theme.palette.text
     };
     let font = FontId::monospace(theme.type_scale.caption);
+    let painter = ui.painter().with_clip_rect(rect);
     let pos = egui::pos2(rect.right() - theme.spacing.xs.max(2.0), rect.center().y);
-    ui.painter()
-        .text(pos, egui::Align2::RIGHT_CENTER, text, font, color);
+    painter.text(pos, egui::Align2::RIGHT_CENTER, text, font, color);
 }
 
 /// Column kind for [`data_table`] (thin table helper over the grid DSL).
@@ -620,56 +722,73 @@ pub fn data_table(
         })
         .collect();
 
-    // Headers via DSL; body rows use the raw grid `Ui` for back-compat callbacks.
+    // Same viewport pin + col-max policy as [`grid_cols`].
+    let avail = ui.available_width().max(1.0);
     let n = columns.len().max(1);
-    Grid::new(id)
-        .num_columns(n)
-        .spacing([theme.spacing.md, 2.0])
-        .min_col_width(40.0)
-        .striped(true)
-        .show(ui, |ui| {
-            let col_widths: Vec<Option<f32>> = specs.iter().map(|c| c.px(theme)).collect();
-            let mut col_i = 0usize;
-            {
-                let mut r = RowDsl {
-                    ui,
-                    theme,
-                    col_widths: &col_widths,
-                    col_i: &mut col_i,
-                };
-                for col in columns {
-                    r.heading(col.header);
+    let col_widths: Vec<Option<f32>> = specs.iter().map(|c| c.px(theme)).collect();
+    let spacing = Vec2::new(theme.spacing.md, 2.0);
+    let col_max = distribute_col_max(&col_widths, avail, spacing.x);
+    let cell_max = col_max.iter().copied().fold(40.0_f32, f32::max);
+
+    ui.scope(|ui| {
+        ui.set_max_width(avail);
+        Grid::new(id)
+            .num_columns(n)
+            .spacing(spacing)
+            .min_col_width(24.0)
+            .max_col_width(cell_max)
+            .striped(true)
+            .show(ui, |ui| {
+                ui.set_max_width(avail);
+                let mut col_i = 0usize;
+                {
+                    let mut r = RowDsl {
+                        ui,
+                        theme,
+                        col_widths: &col_widths,
+                        col_max: &col_max,
+                        col_i: &mut col_i,
+                    };
+                    for col in columns {
+                        r.heading(col.header);
+                    }
                 }
-            }
-            ui.end_row();
-            for i in 0..row_count {
-                row(ui, i);
                 ui.end_row();
-            }
-        });
+                for i in 0..row_count {
+                    row(ui, i);
+                    ui.end_row();
+                }
+            });
+    });
 }
 
-/// Flex text cell for [`data_table`] rows / grid rows.
-///
-/// Uses **extend** (no wrap/truncate) so the grid column grows to fit the text.
+/// Flex text cell for [`data_table`] rows / grid rows (truncate to available).
 pub fn table_text(ui: &mut Ui, theme: &Theme, text: &str, primary: bool) {
+    table_text_capped(ui, theme, text, primary, ui.available_width());
+}
+
+/// Flex text capped to `max_w` so grid columns stay within the viewport budget.
+pub fn table_text_capped(ui: &mut Ui, theme: &Theme, text: &str, primary: bool, max_w: f32) {
     let color = if primary {
         theme.palette.text
     } else {
         theme.palette.text_secondary
     };
-    ui.add(
-        egui::Label::new(
-            RichText::new(text)
-                .size(if primary {
-                    theme.type_scale.body
-                } else {
-                    theme.type_scale.caption
-                })
-                .color(color),
-        )
-        .extend(),
-    );
+    ui.scope(|ui| {
+        ui.set_max_width(max_w.max(1.0));
+        ui.add(
+            egui::Label::new(
+                RichText::new(text)
+                    .size(if primary {
+                        theme.type_scale.body
+                    } else {
+                        theme.type_scale.caption
+                    })
+                    .color(color),
+            )
+            .truncate(),
+        );
+    });
 }
 
 /// Metric cell for [`data_table`] rows (`text` should be [`metric_bps`] / [`metric_rate`]).
@@ -775,5 +894,38 @@ mod tests {
         let rate = ColSpec::MetricRate.px(&th).unwrap();
         assert!(bps > rate);
         assert!((bps - metric_cell_px(&th, METRIC_BPS_CHARS)).abs() < 0.01);
+    }
+
+    #[test]
+    fn distribute_col_max_never_exceeds_budget() {
+        let gap = 12.0;
+        let specs = vec![None, None, Some(100.0), Some(80.0)];
+        for avail in [200.0_f32, 400.0, 800.0, 100.0] {
+            let maxes = distribute_col_max(&specs, avail, gap);
+            let gaps = gap * (specs.len() - 1) as f32;
+            let sum: f32 = maxes.iter().sum();
+            assert!(
+                sum + gaps <= avail + 0.5,
+                "sum={sum} gaps={gaps} avail={avail} maxes={maxes:?}"
+            );
+            assert_eq!(maxes.len(), specs.len());
+        }
+    }
+
+    #[test]
+    fn distribute_col_max_scales_fixed_when_tight() {
+        let specs = vec![Some(200.0), Some(200.0)];
+        let maxes = distribute_col_max(&specs, 200.0, 0.0);
+        assert!((maxes[0] + maxes[1] - 200.0).abs() < 0.01);
+        assert!(maxes[0] < 200.0);
+    }
+
+    #[test]
+    fn distribute_all_flex_equal() {
+        let specs = vec![None, None, None, None];
+        let maxes = distribute_col_max(&specs, 400.0, 0.0);
+        for w in &maxes {
+            assert!((*w - 100.0).abs() < 0.01);
+        }
     }
 }

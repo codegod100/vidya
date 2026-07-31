@@ -151,9 +151,10 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `two_col` / `side_by_side` | Responsive two-column / stack (+ pure breakpoint policy) |
 | `page_body` / `central_page` | Scrollable page content capped to the app view |
 | `inset_row` | Soft inset row capped to parent width |
-| `grid` / `grid_cols` | **Grid DSL** — `g.row(|r| { r.text(..); r.metric_bps(..); })` |
-| `ColSpec` | `Flex` / `Fixed` / `MetricBps` / `MetricRate` (floors; cells grow to fit text) |
-| `metric_cell` | Right-edge mono metric; width = max(hint, measured glyphs + pad) |
+| `grid` / `grid_cols` | **Grid DSL** — pinned to residual width; cols share viewport budget |
+| `distribute_col_max` | Pure policy: per-column max widths so sum + gaps ≤ available |
+| `ColSpec` | `Flex` / `Fixed` / `MetricBps` / `MetricRate` (floors; capped by residual) |
+| `metric_cell` | Right-edge mono metric; clipped to column budget |
 | `RowDsl` | `heading` / `text` / `dim` / `warn` / `metric` / `metric_bps` / `metric_rate` |
 | `metric_bps` / `metric_rate` | Fixed-width monospace rate strings (no staircase columns) |
 | `metric_cell` / `table_metric` / `table_text` | Low-level cells (prefer the row DSL) |
