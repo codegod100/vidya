@@ -687,17 +687,19 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
     /// Free-form cell, sized to the column max width (top-aligned in the row).
     pub fn cell(&mut self, add: impl FnOnce(&mut Ui)) {
         let max_w = self.col_max().max(1.0);
-        // Allocate an exact-width slot so all cells in the row share one baseline
-        // and cannot overflow into the next column (staircase / wrap artifact).
-        self.ui.allocate_ui_with_layout(
-            Vec2::new(max_w, 0.0),
-            Layout::top_down(Align::Min),
-            |ui| {
-                ui.set_min_width(max_w);
-                ui.set_max_width(max_w);
-                add(ui);
-            },
-        );
+        // Width-capped, top-down group = one grid cell.
+        //
+        // Do **not** use `allocate_ui_with_layout(Vec2::new(max_w, 0.0), …)`.
+        // egui::Grid places desired sizes with `Align2::LEFT_CENTER`, so a
+        // zero-height seed is parked mid-row and content grows downward —
+        // leaving a large empty band above (page sections look vertically
+        // centered in the panel). `with_layout` uses the cell's available
+        // rect from the top of the row instead.
+        self.ui.with_layout(Layout::top_down(Align::Min), |ui| {
+            ui.set_min_width(max_w);
+            ui.set_max_width(max_w);
+            add(ui);
+        });
         self.advance();
     }
 
