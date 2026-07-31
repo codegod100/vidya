@@ -37,9 +37,50 @@
         let
           pkgs = pkgsFor system;
           inherit (pkgs) lib;
+          libs = eguiLibs pkgs;
+          libPath = lib.makeLibraryPath libs;
+
+          # `cargo run` launcher: rustup's cargo + nix-provided GL/Wayland libs.
+          # Prefers a live checkout (cwd); falls back to the flake source in the store.
+          demoRunner = pkgs.writeShellApplication {
+            name = "vidya-demo";
+            text = ''
+              export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+              # Same toolchain path as devShell / just host
+              export PATH="''${HOME}/.cargo/bin:$PATH"
+
+              if ! command -v cargo >/dev/null 2>&1; then
+                echo "vidya-demo: cargo not found — install rustup or put cargo on PATH" >&2
+                exit 127
+              fi
+
+              run_host() {
+                local root=$1
+                shift
+                exec cargo run --manifest-path "$root/host/Cargo.toml" -- "$@"
+              }
+
+              # nix run keeps the caller's cwd → live edit/rebuild against the tree
+              if [ -f host/Cargo.toml ]; then
+                run_host "$PWD" "$@"
+              fi
+
+              # App launcher / nix run from another directory → flake source (read-only)
+              flake_src=${lib.escapeShellArg (toString self)}
+              if [ -f "$flake_src/host/Cargo.toml" ]; then
+                export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-''${XDG_CACHE_HOME:-$HOME/.cache}/vidya/cargo-target}"
+                run_host "$flake_src" "$@"
+              fi
+
+              echo "vidya-demo: host/Cargo.toml not found" >&2
+              echo "  run from the vidya checkout, or: nix run path:." >&2
+              exit 1
+            '';
+          };
         in
-        {
-          default = pkgs.rustPlatform.buildRustPackage {
+        rec {
+          # Theme library sources + rlib (for consumers / inspection).
+          vidya = pkgs.rustPlatform.buildRustPackage {
             pname = "vidya";
             version = "0.1.0";
             src = lib.cleanSource ./.;
@@ -58,6 +99,40 @@
               license = lib.licenses.mit;
             };
           };
+
+          # Desktop showcase: cargo-run wrapper + .desktop entry.
+          demo = pkgs.symlinkJoin {
+            name = "vidya-demo";
+            paths = [ demoRunner ];
+            postBuild = ''
+              mkdir -p $out/share/applications
+              substitute ${./host/vidya-demo.desktop} \
+                $out/share/applications/vidya-demo.desktop \
+                --replace-fail 'Exec=vidya-demo' "Exec=$out/bin/vidya-demo"
+            '';
+            meta = {
+              description = "Vidya aesthetic showcase (cargo run host demo)";
+              homepage = "https://tangled.org/nandi.uk/vidya";
+              license = lib.licenses.mit;
+              mainProgram = "vidya-demo";
+            };
+          };
+
+          default = demo;
+        }
+      );
+
+      apps = forAllSystems (
+        system:
+        let
+          demo = self.packages.${system}.demo;
+        in
+        {
+          demo = {
+            type = "app";
+            program = "${demo}/bin/vidya-demo";
+          };
+          default = self.apps.${system}.demo;
         }
       );
 
@@ -86,7 +161,7 @@
               export CC_x86_64_linux_android="''${CC_x86_64_linux_android:-x86_64-linux-android28-clang}"
               export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$CC_x86_64_linux_android"
               export AR_x86_64_linux_android="''${AR_x86_64_linux_android:-llvm-ar}"
-              echo "vidya — just waydroid | just host | just shots"
+              echo "vidya — nix run | just host | just waydroid | just shots"
             '';
           };
         }

@@ -102,16 +102,19 @@ checkbox(ui, &th, &mut sync, "Sync preferences");
 
 | Output | Role |
 |--------|------|
-| `apps.default` / `apps.demo` | Aesthetic showcase (`vidya-demo`) |
-| `packages.default` / `packages.demo` | Same binary derivation |
+| `apps.default` / `apps.demo` | Desktop showcase via **`cargo run`** (rustup + egui libs) |
+| `packages.default` / `packages.demo` | Same launcher + `.desktop` entry |
 | `packages.vidya` | Theme library sources + rlib bundle |
-| `devShells.default` | rustc/cargo + egui runtime libs |
+| `devShells.default` | just · adb · egui runtime libs (rustup for cargo) |
 
 ```bash
+nix run                 # cargo run --manifest-path host/Cargo.toml
 nix run .#demo
 nix build .#vidya
 nix develop
 ```
+
+`nix run` keeps your cwd: from the checkout it rebuilds the live tree (same as `just host`). The packaged `.desktop` falls back to the flake source with `CARGO_TARGET_DIR` under `~/.cache/vidya/`.
 
 As a flake input:
 
@@ -148,9 +151,12 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `two_col` / `side_by_side` | Responsive two-column / stack (+ pure breakpoint policy) |
 | `page_body` / `central_page` | Scrollable page content capped to the app view |
 | `inset_row` | Soft inset row capped to parent width |
+| `grid` / `grid_cols` | **Grid DSL** — `g.row(|r| { r.text(..); r.metric_bps(..); })` |
+| `ColSpec` | `Flex` / `Fixed` / `MetricBps` / `MetricRate` column hints |
+| `RowDsl` | `heading` / `text` / `dim` / `warn` / `metric` / `metric_bps` / `metric_rate` |
 | `metric_bps` / `metric_rate` | Fixed-width monospace rate strings (no staircase columns) |
-| `metric_cell` / `table_metric` / `table_text` | Right-edge metric cells + flex text for tables |
-| `data_table` | Striped grid: flex columns + fixed metric columns |
+| `metric_cell` / `table_metric` / `table_text` | Low-level cells (prefer the row DSL) |
+| `data_table` | Index-callback table helper on top of the grid DSL |
 | `reserve_system_chrome` / `system_chrome` | Android status + nav safe areas |
 | `top_header` | Header panel with system chrome already reserved |
 

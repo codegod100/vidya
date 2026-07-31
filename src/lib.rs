@@ -8,9 +8,17 @@
 //! the system status / navigation bars.
 //!
 //! Layout composition: prefer [`page_body`] / [`card`] / [`compact_card`] /
-//! [`pack`] / [`vstack`] / [`lead_trail`] / [`two_col`] / [`data_table`] /
+//! [`pack`] / [`vstack`] / [`lead_trail`] / [`two_col`] / [`grid_cols`] /
 //! [`metric_bps`] so apps avoid width overflow, justified-gap stretch, and
 //! metric “waterfall” columns.
+//!
+//! Grid DSL:
+//! ```ignore
+//! vidya::grid_cols(ui, &th, "procs", &[ColSpec::Flex, ColSpec::MetricBps], |g| {
+//!     g.row(|r| { r.heading("Name"); r.heading("Write"); });
+//!     g.row(|r| { r.text(name); r.metric_bps(rate); });
+//! });
+//! ```
 //!
 //! ```ignore
 //! use vidya::{apply_dark, Theme};
@@ -36,9 +44,10 @@ pub use icons::{
 };
 pub use layout::{
     card, central_page, compact_card, data_table, default_min_col, fill_width, fit_width,
-    format_bps, format_rate, hflow, inset_row, lead_trail, metric_bps, metric_cell, metric_cell_px,
-    metric_rate, pack, pad_metric, page_body, side_by_side, table_metric, table_text, two_col,
-    vstack, Col, ColKind, METRIC_BPS_CHARS, METRIC_RATE_CHARS,
+    format_bps, format_rate, grid, grid_cols, hflow, inset_row, lead_trail, metric_bps,
+    metric_cell, metric_cell_px, metric_rate, pack, pad_metric, page_body, side_by_side,
+    table_metric, table_text, two_col, vstack, Col, ColKind, ColSpec, GridCtx, RowDsl,
+    METRIC_BPS_CHARS, METRIC_RATE_CHARS,
 };
 pub use theme::{
     body, button, checkbox, destructive_button, dim_label, icon_button, primary_button, status_dot,

@@ -9,7 +9,7 @@ publish = false
 [workspace]
 
 [[bin]]
-name = "vidya-demo-host"
+name = "vidya-demo"
 path = "src/main.rs"
 
 [dependencies]
