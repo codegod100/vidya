@@ -127,15 +127,30 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `apply` / `apply_dark` / `apply_light` | Install on `egui::Context` (+ symbol font) |
 | `install_symbol_font` | Fallback glyphs for arrows / disclosure triangles / bullets / quotes |
 | `emoji_icon` / `paint_emoji_in` / `has_emoji_icon` | Full Twemoji color set by codepoint |
-| `Icon` / `icon` / `paint_icon_in` | Named shortcuts + stroke Plus |
+| `Icon` / `icon` / `paint_icon_in` | Named shortcuts + stroke Plus / Copy |
+| `icon_button` | Square tool button with a stroke/emoji icon |
 | `reaction_chip` | Themed count chip with color emoji |
 | `primary_button` / `button` / `destructive_button` | Styled actions |
 | `checkbox` | Accent-filled checkbox with drawn checkmark |
 | `status_dot` | Live/offline circle (drawn — no Unicode tofu on Android) |
-| `text_field_singleline` / `text_field_multiline` | Text inputs with field padding |
+| `text_field_singleline` / `text_field_multiline` | Text inputs with field padding (fill parent width) |
 | `title` / `title_2` / `body` / `dim_label` | Text roles |
 | `Theme::header_frame` / `card_frame` / `page_frame` | Layout chrome |
 | `Theme::text_edit_margin` | Inner field padding (12×8 default) |
+| **Layout composition** | Prefer these over raw `set_max_width` / `Layout` plumbing |
+| `fit_width` / `fill_width` | Pin children to residual width (no edge overflow) |
+| `vstack` | Non-justified vertical stack (no giant gaps in tall parents) |
+| `card` | Fill-width themed card + `vstack` content |
+| `compact_card` | Fixed-width card that **hugs content** (gauge / anomaly tiles) |
+| `pack` | Wrap compact tiles without stretching leftover horizontal space |
+| `hflow` | Wrapping horizontal row (toolbars / chips) |
+| `lead_trail` | Leading field + trailing actions without clipping the actions |
+| `two_col` / `side_by_side` | Responsive two-column / stack (+ pure breakpoint policy) |
+| `page_body` / `central_page` | Scrollable page content capped to the app view |
+| `inset_row` | Soft inset row capped to parent width |
+| `metric_bps` / `metric_rate` | Fixed-width monospace rate strings (no staircase columns) |
+| `metric_cell` / `table_metric` / `table_text` | Right-edge metric cells + flex text for tables |
+| `data_table` | Striped grid: flex columns + fixed metric columns |
 | `reserve_system_chrome` / `system_chrome` | Android status + nav safe areas |
 | `top_header` | Header panel with system chrome already reserved |
 

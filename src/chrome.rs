@@ -7,10 +7,17 @@
 //! Call [`reserve_system_chrome`] once at the start of every frame (before any
 //! other `TopBottomPanel` / `SidePanel` / `CentralPanel`), or use
 //! [`top_header`] which does that for you.
+//!
+//! Prefer injecting measured insets via [`set_system_chrome`] (from
+//! `AndroidApp::content_rect` or WindowInsets) so reserves match the device —
+//! hardcoded fallbacks are intentionally tight for modern gesture-nav phones.
 
-use egui::{Context, Frame, Margin, Sense, Ui};
+use egui::{Context, Frame, Id, Margin, Sense, Ui};
 
 use crate::Theme;
+
+/// Temp-data id for app-supplied measured insets (see [`set_system_chrome`]).
+const SYSTEM_CHROME_ID: &str = "vidya.system_chrome";
 
 /// Insets for system status / navigation chrome on edge-to-edge surfaces.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -32,24 +39,50 @@ impl SystemChrome {
     }
 }
 
+/// Inject measured system insets for this frame (egui points).
+///
+/// Call once per frame **before** [`reserve_system_chrome`]. When set,
+/// [`system_chrome`] uses these values instead of the platform fallbacks
+/// (IME expansion still applies on top of `bottom`).
+pub fn set_system_chrome(ctx: &Context, chrome: SystemChrome) {
+    ctx.data_mut(|d| d.insert_temp(Id::new(SYSTEM_CHROME_ID), chrome));
+}
+
 /// Platform defaults for edge-to-edge drawing.
 ///
-/// Values match common gesture-nav phones (≈24–36 dp status, ≈48 dp nav).
+/// Fallback values are **tight** for modern gesture-nav phones (≈24–28 dp
+/// status, ≈16–24 dp gesture handle). Prefer [`set_system_chrome`] with
+/// measured `content_rect` / WindowInsets when available.
+///
 /// When a text field holds focus (`Context::wants_keyboard_input`), the bottom
 /// inset grows so bottom bars / compose fields sit **above** the soft keyboard
 /// (NativeActivity rarely resizes the GL surface for IME).
 pub fn system_chrome(ctx: &Context) -> SystemChrome {
     #[cfg(target_os = "android")]
     {
-        let top = 36.0;
-        // Gesture / 3-button nav when the keyboard is hidden.
-        let mut bottom = 48.0;
+        let measured = ctx.data(|d| d.get_temp::<SystemChrome>(Id::new(SYSTEM_CHROME_ID)));
+        // Fallbacks when the app does not inject measured insets. Top must
+        // clear the status bar under edge-to-edge (never “shy” into the clock).
+        const TOP_FALLBACK: f32 = 36.0;
+        const BOTTOM_FALLBACK: f32 = 20.0;
+        let top = match measured {
+            // Reject zero/near-zero injected tops — that was the regression:
+            // content_rect top=0 overrode the fallback and drew under the clock.
+            Some(c) if c.top >= 8.0 => c.top,
+            Some(c) => c.top.max(TOP_FALLBACK),
+            None => TOP_FALLBACK,
+        };
+        let mut bottom = match measured {
+            Some(c) => c.bottom.max(0.0),
+            None => BOTTOM_FALLBACK,
+        };
         if ctx.wants_keyboard_input() {
             // Soft keyboards are typically ~35–45% of portrait height. Pad that
             // much under all UI so TopBottomPanel compose / tabs clear the IME.
             // (Seen on Pixel: ime inset ≈ 988px on a 2400px-tall display.)
             let h = ctx.screen_rect().height();
-            bottom = (h * 0.40).clamp(240.0, h * 0.52);
+            let ime = (h * 0.40).clamp(240.0, h * 0.52);
+            bottom = bottom.max(ime);
             // Keep animating a few frames while the keyboard slides in/out.
             ctx.request_repaint();
         }
@@ -76,13 +109,20 @@ pub fn reserve_system_chrome(ctx: &Context, theme: &Theme) {
         return;
     }
 
-    let fill = theme.palette.headerbar_bg;
-    let band = Frame::new().fill(fill).inner_margin(Margin::ZERO);
+    // Top band matches the header so status-bar area reads as continuous chrome
+    // under the clock (not a hole the title can climb into).
+    // Bottom band matches window bg so gesture/nav clearance stays subtle.
+    let top_band = Frame::new()
+        .fill(theme.palette.headerbar_bg)
+        .inner_margin(Margin::ZERO);
+    let bottom_band = Frame::new()
+        .fill(theme.palette.window_bg)
+        .inner_margin(Margin::ZERO);
 
     if chrome.top > 0.0 {
         egui::TopBottomPanel::top("vidya_system_chrome_top")
             .exact_height(chrome.top)
-            .frame(band)
+            .frame(top_band)
             .show_separator_line(false)
             .show(ctx, |_ui| {});
     }
@@ -90,7 +130,7 @@ pub fn reserve_system_chrome(ctx: &Context, theme: &Theme) {
     if chrome.bottom > 0.0 {
         egui::TopBottomPanel::bottom("vidya_system_chrome_bottom")
             .exact_height(chrome.bottom)
-            .frame(band)
+            .frame(bottom_band)
             .show_separator_line(false)
             .show(ctx, |ui| {
                 // Absorb input so gestures aren't stolen by widgets behind the band.

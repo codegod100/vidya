@@ -4,8 +4,8 @@ use egui::{
     pos2,
     style::{ScrollStyle, WidgetVisuals},
     Button, Color32, CornerRadius, CursorIcon, FontId, Frame, Label, Margin, Response, RichText,
-    Sense, Shadow, Shape, Stroke, StrokeKind, Style, TextBuffer, TextEdit, Ui, Vec2, Visuals,
-    WidgetInfo, WidgetType,
+    Sense, Shadow, Shape, Stroke, StrokeKind, Style, TextBuffer, TextEdit, TextWrapMode, Ui, Vec2,
+    Visuals, WidgetInfo, WidgetType,
 };
 
 use crate::install_text_styles;
@@ -269,6 +269,14 @@ impl Theme {
         // Solid gutters: floating bars sit on top of content (egui default). HIG-ish
         // scroll areas reserve space so lists/text never sit under the thumb.
         style.spacing.scroll = ScrollStyle::solid();
+        // Prefer wrapping at the parent edge over extending (overflow) or hard
+        // truncate. Pair with layout helpers (`fit_width`, `card`, `hflow`) so
+        // rows actually receive a finite residual width.
+        style.wrap_mode = Some(TextWrapMode::Wrap);
+        // Default TextEdit desired width: fill parent residual (egui still
+        // clamps to available_width). Avoid the stock 280px “always this wide”
+        // intrinsic that pushes horizontal rows past the app view.
+        style.spacing.text_edit_width = 10_000.0;
         style.interaction.tooltip_delay = 0.4;
         style.animation_time = 0.12;
         style
@@ -350,6 +358,50 @@ fn widget_visuals(p: &Palette, sp: &Spacing) -> egui::style::Widgets {
             expansion: 0.0,
         },
     }
+}
+
+/// Square tool button with a stroke/emoji [`crate::Icon`] (e.g. copy, plus).
+///
+/// Prefer this over text labels in tight rows — text wraps under
+/// [`TextWrapMode::Wrap`] and looks broken at small widths.
+pub fn icon_button(ui: &mut Ui, theme: &Theme, icon: crate::Icon, tip: &str) -> Response {
+    use crate::paint_icon_in;
+    let p = &theme.palette;
+    let size = theme.spacing.control_height;
+    let (rect, mut response) = ui.allocate_exact_size(Vec2::splat(size), Sense::click());
+    response = response.on_hover_text(tip);
+    if let Some(cursor) = ui.visuals().interact_cursor {
+        response = response.on_hover_cursor(cursor);
+    }
+
+    if ui.is_rect_visible(rect) {
+        let hovered = response.hovered() && ui.is_enabled();
+        let active = response.is_pointer_button_down_on();
+        let fill = if active {
+            p.button_active
+        } else if hovered {
+            p.button_hover
+        } else {
+            p.button_bg
+        };
+        let border = if hovered {
+            Stroke::new(1.0_f32, p.border)
+        } else {
+            Stroke::new(1.0_f32, p.border_soft)
+        };
+        ui.painter().rect(
+            rect,
+            theme.spacing.radius_md,
+            fill,
+            border,
+            StrokeKind::Inside,
+        );
+        let icon_size = size * 0.48;
+        let icon_rect = egui::Rect::from_center_size(rect.center(), Vec2::splat(icon_size));
+        paint_icon_in(ui, icon_rect, icon, p.button_fg);
+    }
+
+    response
 }
 
 /// Primary / suggested action (accent filled).
@@ -552,29 +604,37 @@ pub fn dim_label(ui: &mut Ui, theme: &Theme, text: &str) {
 }
 
 /// Single-line text field with theme field padding.
+///
+/// Desired width tracks the parent residual so the field fills its slot
+/// instead of requesting a fixed 280px and clipping siblings off-screen.
 pub fn text_field_singleline(
     ui: &mut Ui,
     theme: &Theme,
     text: &mut dyn TextBuffer,
 ) -> Response {
+    let w = ui.available_width().max(1.0);
     ui.add(
         TextEdit::singleline(text)
             .margin(theme.text_edit_margin())
+            .desired_width(w)
             .min_size(Vec2::new(0.0, theme.spacing.control_height)),
     )
 }
 
 /// Multi-line text field with theme field padding.
+///
+/// Fills parent width (clamped by available space) so it stays inside the view.
 pub fn text_field_multiline(
     ui: &mut Ui,
     theme: &Theme,
     text: &mut dyn TextBuffer,
     rows: usize,
 ) -> Response {
+    let w = ui.available_width().max(1.0);
     ui.add(
         TextEdit::multiline(text)
             .margin(theme.text_edit_margin())
-            .desired_width(f32::INFINITY)
+            .desired_width(w)
             .desired_rows(rows),
     )
 }

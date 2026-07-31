@@ -69,6 +69,8 @@ pub enum Icon {
     Frown,
     /// Drawn stroke — not a Twemoji glyph.
     Plus,
+    /// Drawn stroke — overlapping pages (copy / duplicate).
+    Copy,
 }
 
 impl Icon {
@@ -89,7 +91,13 @@ impl Icon {
         Icon::Frown,
         Icon::ThumbsDown,
         Icon::Plus,
+        Icon::Copy,
     ];
+
+    /// True when this icon is stroke-drawn (not a Twemoji bitmap).
+    pub fn is_stroke(self) -> bool {
+        matches!(self, Icon::Plus | Icon::Copy)
+    }
 
     pub fn emoji(self) -> &'static str {
         match self {
@@ -100,6 +108,7 @@ impl Icon {
             Icon::Surprised => "😮",
             Icon::Frown => "😢",
             Icon::Plus => "+",
+            Icon::Copy => "⧉",
         }
     }
 }
@@ -248,11 +257,11 @@ pub fn icon(ui: &mut Ui, theme: &Theme, icon: Icon, size: f32) -> Response {
     icon_colored(ui, theme.palette.text, icon, size)
 }
 
-/// Like [`icon`]; `color` only affects [`Icon::Plus`].
+/// Like [`icon`]; `color` only affects stroke icons ([`Icon::Plus`], [`Icon::Copy`]).
 pub fn icon_colored(ui: &mut Ui, color: Color32, icon: Icon, size: f32) -> Response {
     let size = size.max(8.0);
     match icon {
-        Icon::Plus => paint_plus(ui, color, size),
+        Icon::Plus | Icon::Copy => paint_stroke_icon(ui, color, icon, size),
         other => {
             let (rect, response) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
             paint_emoji_in(ui, rect, other.emoji(), color);
@@ -281,24 +290,39 @@ pub fn emoji_icon_colored(
     response
 }
 
-/// Draw [`Icon::Plus`] into `rect` (emoji icons need [`paint_emoji_in`] / [`paint_icon_in`]).
+/// Draw a stroke icon ([`Icon::Plus`], [`Icon::Copy`]) into `rect`.
+/// Emoji icons need [`paint_emoji_in`] / [`paint_icon_in`].
 pub fn paint_icon(painter: &egui::Painter, rect: Rect, icon: Icon, color: Color32) {
-    if !matches!(icon, Icon::Plus) {
-        return;
-    }
     let s = rect.width().min(rect.height());
     let c = rect.center();
-    let arm = s * 0.32;
     let w = (s * 0.12).clamp(1.5, 2.5);
     let stroke = Stroke::new(w, color);
-    painter.line_segment([pos2(c.x - arm, c.y), pos2(c.x + arm, c.y)], stroke);
-    painter.line_segment([pos2(c.x, c.y - arm), pos2(c.x, c.y + arm)], stroke);
+    match icon {
+        Icon::Plus => {
+            let arm = s * 0.32;
+            painter.line_segment([pos2(c.x - arm, c.y), pos2(c.x + arm, c.y)], stroke);
+            painter.line_segment([pos2(c.x, c.y - arm), pos2(c.x, c.y + arm)], stroke);
+        }
+        Icon::Copy => {
+            // Two overlapping pages — classic “copy” glyph (stroke only).
+            let page_w = s * 0.38;
+            let page_h = s * 0.46;
+            let r = (s * 0.08).clamp(0.5, 2.5);
+            let dx = s * 0.11;
+            let dy = s * 0.11;
+            let back = Rect::from_center_size(pos2(c.x - dx, c.y - dy), Vec2::new(page_w, page_h));
+            let front = Rect::from_center_size(pos2(c.x + dx, c.y + dy), Vec2::new(page_w, page_h));
+            painter.rect_stroke(back, r, stroke, egui::StrokeKind::Inside);
+            painter.rect_stroke(front, r, stroke, egui::StrokeKind::Inside);
+        }
+        _ => {}
+    }
 }
 
 /// Draw a named [`Icon`] into `rect`.
 pub fn paint_icon_in(ui: &Ui, rect: Rect, icon: Icon, color: Color32) {
     match icon {
-        Icon::Plus => paint_icon(ui.painter(), rect, Icon::Plus, color),
+        Icon::Plus | Icon::Copy => paint_icon(ui.painter(), rect, icon, color),
         other => paint_emoji_in(ui, rect, other.emoji(), color),
     }
 }
@@ -422,10 +446,10 @@ fn decode_png_rgba(bytes: &[u8]) -> Option<ColorImage> {
     Some(ColorImage::from_rgba_unmultiplied([w, h], &rgba))
 }
 
-fn paint_plus(ui: &mut Ui, color: Color32, size: f32) -> Response {
+fn paint_stroke_icon(ui: &mut Ui, color: Color32, icon: Icon, size: f32) -> Response {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
     if ui.is_rect_visible(rect) {
-        paint_icon(ui.painter(), rect, Icon::Plus, color);
+        paint_icon(ui.painter(), rect, icon, color);
     }
     response
 }

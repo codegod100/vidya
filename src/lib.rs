@@ -7,6 +7,11 @@
 //! **before** other panels, or use [`top_header`] so content cannot sit under
 //! the system status / navigation bars.
 //!
+//! Layout composition: prefer [`page_body`] / [`card`] / [`compact_card`] /
+//! [`pack`] / [`vstack`] / [`lead_trail`] / [`two_col`] / [`data_table`] /
+//! [`metric_bps`] so apps avoid width overflow, justified-gap stretch, and
+//! metric “waterfall” columns.
+//!
 //! ```ignore
 //! use vidya::{apply_dark, Theme};
 //!
@@ -17,17 +22,26 @@
 mod chrome;
 mod fonts;
 mod icons;
+mod layout;
 mod theme;
 
-pub use chrome::{reserve_system_chrome, system_chrome, top_header, SystemChrome};
+pub use chrome::{
+    reserve_system_chrome, set_system_chrome, system_chrome, top_header, SystemChrome,
+};
 pub use fonts::install_symbol_font;
 pub use icons::{
     emoji_icon, emoji_icon_colored, emoji_pack_len, has_emoji_icon, icon, icon_colored,
     icon_for_emoji, normalize_emoji, paint_emoji_in, paint_icon, paint_icon_in, reaction_chip,
     twemoji_key, Icon,
 };
+pub use layout::{
+    card, central_page, compact_card, data_table, default_min_col, fill_width, fit_width,
+    format_bps, format_rate, hflow, inset_row, lead_trail, metric_bps, metric_cell, metric_cell_px,
+    metric_rate, pack, pad_metric, page_body, side_by_side, table_metric, table_text, two_col,
+    vstack, Col, ColKind, METRIC_BPS_CHARS, METRIC_RATE_CHARS,
+};
 pub use theme::{
-    body, button, checkbox, destructive_button, dim_label, primary_button, status_dot,
+    body, button, checkbox, destructive_button, dim_label, icon_button, primary_button, status_dot,
     text_field_multiline, text_field_singleline, title, title_2, Mode, Palette, Spacing, Theme,
     TypeScale,
 };
