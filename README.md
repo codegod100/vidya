@@ -149,9 +149,13 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `hflow` | Wrapping horizontal row (toolbars / chips) |
 | `lead_trail` | Leading field + trailing actions without clipping the actions |
 | `two_col` / `side_by_side` | Responsive two-column / stack (+ pure breakpoint policy) |
-| `page_body` / `central_page` | Scrollable page content capped to the app view |
+| `page_body` / `central_page` | **Enforced** scrollable page: top-level content is a **grid** (`GridCtx`) |
+| `page_body_cols` / `central_page_cols` | Same, with explicit top-level `ColSpec`s |
+| `page_scroll` | Escape hatch: scroll + width pin only (no grid) |
+| `GridCtx::section` | Full-width page section (one row / one cell) — preferred page building block |
 | `inset_row` | Soft inset row capped to parent width |
 | `grid` / `grid_cols` | **Grid DSL** — pinned to residual width; cols share viewport budget |
+| `grid_cols_with` / `GridOpts` | Grid with striping / spacing options (page shell uses non-striped) |
 | `distribute_col_max` | Pure policy: per-column max widths so sum + gaps ≤ available |
 | `ColSpec` | `Flex` / `Fixed` / `MetricBps` / `MetricRate` (floors; capped by residual) |
 | `metric_cell` | Right-edge mono metric; clipped to column budget |

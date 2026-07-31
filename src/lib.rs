@@ -12,7 +12,18 @@
 //! [`metric_bps`] so apps avoid width overflow, justified-gap stretch, and
 //! metric “waterfall” columns.
 //!
-//! Grid DSL:
+//! **Top-level application UI is grid-only:** [`central_page`] / [`page_body`]
+//! take a [`GridCtx`] callback (not a free-stack `Ui`). Compose with
+//! [`GridCtx::section`] / `g.row`; nest cards and nested grids inside cells.
+//!
+//! ```ignore
+//! vidya::central_page(ctx, &th, "main", |g| {
+//!     g.section(|ui| { /* … */ });
+//!     g.section(|ui| { /* … */ });
+//! });
+//! ```
+//!
+//! Nested / table Grid DSL:
 //! ```ignore
 //! vidya::grid_cols(ui, &th, "procs", &[ColSpec::Flex, ColSpec::MetricBps], |g| {
 //!     g.row(|r| { r.heading("Name"); r.heading("Write"); });
@@ -43,12 +54,13 @@ pub use icons::{
     twemoji_key, Icon,
 };
 pub use layout::{
-    card, central_page, compact_card, data_table, default_min_col, fill_width, fit_width,
-    card_frame_chrome_x, distribute_col_max, format_bps, format_rate, grid, grid_cols, hflow,
-    inset_row, lead_trail, measure_mono_caption, metric_bps, metric_cell, metric_cell_px,
-    metric_rate, pack, pad_metric, page_body, side_by_side, table_metric, table_text,
-    table_text_capped, two_col, vstack, Col, ColKind, ColSpec, GridCtx, RowDsl, FLEX_COL_MIN_PX,
-    METRIC_BPS_CHARS, METRIC_RATE_CHARS,
+    card, card_frame_chrome_x, central_page, central_page_cols, compact_card, data_table,
+    default_min_col, distribute_col_max, fill_width, fit_width, format_bps, format_rate, grid,
+    grid_cols, grid_cols_with, hflow, inset_row, lead_trail, measure_mono_caption, metric_bps,
+    metric_cell, metric_cell_px, metric_rate, pack, pad_metric, page_body, page_body_cols,
+    page_scroll, side_by_side, table_metric, table_text, table_text_capped, two_col, vstack, Col,
+    ColKind, ColSpec, GridCtx, GridOpts, RowDsl, FLEX_COL_MIN_PX, METRIC_BPS_CHARS,
+    METRIC_RATE_CHARS,
 };
 pub use theme::{
     body, button, checkbox, destructive_button, dim_label, icon_button, primary_button, status_dot,

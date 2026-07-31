@@ -9,12 +9,30 @@
 //! | App footgun | Primitive |
 //! |-------------|-----------|
 //! | Page scrolls off / under edge | [`page_body`] / [`central_page`] |
+//! | Free-stack app UI at top level | **enforced:** [`page_body`] / [`central_page`] take a grid DSL |
 //! | Card overflows column | [`card`] / [`compact_card`] |
 //! | Giant gaps when parent is tall | [`vstack`] (non-justified) |
 //! | Fixed tiles stretch across the window | [`pack`] (wrap, hug content) |
 //! | Actions clipped off the right | [`lead_trail`] |
 //! | Side-by-side vs stack breakpoint | [`two_col`] / [`side_by_side`] |
 //! | Rate columns staircase ("waterfall") | [`metric_bps`] / [`metric_rate`] / [`metric_cell`] / [`grid_cols`] / [`data_table`] |
+//!
+//! # Top-level application UI (enforced)
+//!
+//! Application content in the central panel **must** be composed through the
+//! grid DSL. [`page_body`] and [`central_page`] only accept a [`GridCtx`]
+//! callback — free stacking of widgets at the page root is not part of the
+//! public path. Nested cards, nested [`grid_cols`], gauges, and text go
+//! **inside** cells / [`GridCtx::section`]s.
+//!
+//! ```ignore
+//! vidya::central_page(ctx, &th, "main", |g| {
+//!     g.section(|ui| { /* gauges row — often a nested grid_cols */ });
+//!     g.section(|ui| { /* process table */ });
+//! });
+//! ```
+//!
+//! Escape hatch (scroll + width pin only, no grid): [`page_scroll`].
 
 use std::hash::Hash;
 
@@ -295,14 +313,21 @@ pub fn two_col(
 }
 
 // ── Page shell ──────────────────────────────────────────────────────────────
+//
+// Application UI at the top level is **grid-only**. `page_body` /
+// `central_page` take a `GridCtx` callback so free-form stacking cannot be
+// the supported root composition path. Nested content lives inside cells.
 
-/// Scrollable page body: pin width to the panel residual, then scroll vertically.
-pub fn page_body(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+/// Escape hatch: pin width + vertical scroll **without** a top-level grid.
+///
+/// Prefer [`page_body`] / [`central_page`] for application UI. Use this only
+/// when a demo or special chrome needs free-form scrolling content.
+pub fn page_scroll(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     let w = ui.available_width().max(1.0);
     ui.set_max_width(w);
     ScrollArea::vertical()
         .auto_shrink([false, false])
-        .id_salt("vidya_page_body")
+        .id_salt("vidya_page_scroll")
         .show(ui, |ui| {
             let inner = ui.available_width().max(1.0);
             ui.set_max_width(inner);
@@ -310,16 +335,66 @@ pub fn page_body(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
         });
 }
 
-/// Full central page: themed page frame + [`page_body`].
+/// Scrollable application page whose **top-level content is a grid**.
+///
+/// Defaults to a single flex column: each [`GridCtx::section`] (or `g.row`)
+/// is a full-width page block. Nested multi-column layouts use [`grid_cols`]
+/// inside a section/cell.
+///
+/// This is the supported root for app UI — the callback cannot receive a raw
+/// free-stack `Ui` at the page root.
+pub fn page_body(
+    ui: &mut Ui,
+    theme: &Theme,
+    id: impl Hash,
+    add: impl FnOnce(&mut GridCtx<'_, '_>),
+) {
+    page_body_cols(ui, theme, id, &[ColSpec::Flex], add);
+}
+
+/// Like [`page_body`], but with explicit top-level column specs.
+pub fn page_body_cols(
+    ui: &mut Ui,
+    theme: &Theme,
+    id: impl Hash,
+    cols: &[ColSpec],
+    add: impl FnOnce(&mut GridCtx<'_, '_>),
+) {
+    page_scroll(ui, |ui| {
+        // Page grid: no zebra striping, larger vertical gap between sections.
+        grid_cols_with(ui, theme, id, cols, GridOpts::page(theme), add);
+    });
+}
+
+/// Full central page: themed page frame + grid-enforced [`page_body`].
+///
+/// Application central content **must** be composed via the grid DSL
+/// (`g.section` / `g.row`). See module docs.
 pub fn central_page(
     ctx: &egui::Context,
     theme: &Theme,
-    add: impl FnOnce(&mut Ui),
+    id: impl Hash,
+    add: impl FnOnce(&mut GridCtx<'_, '_>),
 ) -> egui::InnerResponse<()> {
     egui::CentralPanel::default()
         .frame(theme.page_frame())
         .show(ctx, |ui| {
-            page_body(ui, add);
+            page_body(ui, theme, id, add);
+        })
+}
+
+/// Like [`central_page`], but with explicit top-level column specs.
+pub fn central_page_cols(
+    ctx: &egui::Context,
+    theme: &Theme,
+    id: impl Hash,
+    cols: &[ColSpec],
+    add: impl FnOnce(&mut GridCtx<'_, '_>),
+) -> egui::InnerResponse<()> {
+    egui::CentralPanel::default()
+        .frame(theme.page_frame())
+        .show(ctx, |ui| {
+            page_body_cols(ui, theme, id, cols, add);
         })
 }
 
@@ -445,6 +520,33 @@ pub struct GridCtx<'ui, 'th> {
     col_max: Vec<f32>,
 }
 
+/// Options for [`grid_cols_with`] / the page shell grid.
+#[derive(Debug, Clone, Copy)]
+pub struct GridOpts {
+    /// Zebra striping (tables on; page shell off).
+    pub striped: bool,
+    /// Column gap (x) and row gap (y).
+    pub spacing: Vec2,
+}
+
+impl GridOpts {
+    /// Defaults for nested data tables / multi-column surfaces.
+    pub fn table(theme: &Theme) -> Self {
+        Self {
+            striped: true,
+            spacing: Vec2::new(theme.spacing.md, 2.0),
+        }
+    }
+
+    /// Defaults for top-level [`page_body`] (no striping, section-sized row gap).
+    pub fn page(theme: &Theme) -> Self {
+        Self {
+            striped: false,
+            spacing: Vec2::new(theme.spacing.md, theme.spacing.lg),
+        }
+    }
+}
+
 /// Grid with explicit column specs (recommended for metric tables).
 ///
 /// The grid container is pinned to `ui.available_width()` so it cannot grow
@@ -455,12 +557,24 @@ pub fn grid_cols(
     theme: &Theme,
     id: impl Hash,
     cols: &[ColSpec],
-    mut add: impl FnMut(&mut GridCtx<'_, '_>),
+    add: impl FnOnce(&mut GridCtx<'_, '_>),
+) {
+    grid_cols_with(ui, theme, id, cols, GridOpts::table(theme), add);
+}
+
+/// Grid with explicit column specs and layout options.
+pub fn grid_cols_with(
+    ui: &mut Ui,
+    theme: &Theme,
+    id: impl Hash,
+    cols: &[ColSpec],
+    opts: GridOpts,
+    add: impl FnOnce(&mut GridCtx<'_, '_>),
 ) {
     let avail = ui.available_width().max(1.0);
     let n = if cols.is_empty() { 16 } else { cols.len() };
     let col_widths: Vec<Option<f32>> = cols.iter().map(|c| c.px(theme)).collect();
-    let spacing = Vec2::new(theme.spacing.md, 2.0);
+    let spacing = opts.spacing;
     let col_max = if cols.is_empty() {
         distribute_col_max(&vec![None; n], avail, spacing.x)
     } else {
@@ -477,7 +591,7 @@ pub fn grid_cols(
             .spacing(spacing)
             .min_col_width(24.0)
             .max_col_width(cell_max)
-            .striped(true)
+            .striped(opts.striped)
             .show(ui, |ui| {
                 ui.set_max_width(avail);
                 let mut ctx = GridCtx {
@@ -496,12 +610,23 @@ pub fn grid(
     ui: &mut Ui,
     theme: &Theme,
     id: impl Hash,
-    add: impl FnMut(&mut GridCtx<'_, '_>),
+    add: impl FnOnce(&mut GridCtx<'_, '_>),
 ) {
     grid_cols(ui, theme, id, &[], add);
 }
 
 impl<'ui, 'th> GridCtx<'ui, 'th> {
+    /// Full-width page section: one row containing one cell.
+    ///
+    /// Primary building block for [`page_body`] / [`central_page`]. Put nested
+    /// grids, cards, and free-form widgets **inside** the section — not as
+    /// siblings of the page grid.
+    pub fn section(&mut self, add: impl FnOnce(&mut Ui)) {
+        self.row(|r| {
+            r.cell(add);
+        });
+    }
+
     /// One table row. Cells are written left→right; `end_row` is automatic.
     pub fn row(&mut self, add: impl FnOnce(&mut RowDsl<'_, 'th>)) {
         let mut col_i = 0usize;
@@ -913,6 +1038,50 @@ mod tests {
         let rate = ColSpec::MetricRate.px(&th).unwrap();
         assert!(bps > rate);
         assert!((bps - metric_cell_px(&th, METRIC_BPS_CHARS)).abs() < 0.01);
+    }
+
+    #[test]
+    fn grid_opts_page_is_not_striped_and_uses_lg_row_gap() {
+        let th = Theme::dark();
+        let page = GridOpts::page(&th);
+        let table = GridOpts::table(&th);
+        assert!(!page.striped);
+        assert!(table.striped);
+        assert!((page.spacing.y - th.spacing.lg).abs() < 0.01);
+        assert!((table.spacing.y - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn page_shell_api_is_grid_only() {
+        // Source-level contract: page_body / central_page take GridCtx, not free Ui.
+        let layout = include_str!("layout.rs");
+        // Signature block for page_body must include theme + GridCtx (not free Ui only).
+        let start = layout
+            .find("pub fn page_body(\n")
+            .expect("page_body definition");
+        let sig = &layout[start..start + 280];
+        assert!(
+            sig.contains("theme: &Theme"),
+            "page_body must take theme for grid"
+        );
+        assert!(
+            sig.contains("GridCtx"),
+            "page_body must take GridCtx callback: {sig}"
+        );
+        assert!(
+            !sig.contains("FnOnce(&mut Ui)"),
+            "page_body must not accept free-form Ui: {sig}"
+        );
+        assert!(
+            layout.contains("page_body(ui, theme, id, add)"),
+            "central_page must route through grid page_body"
+        );
+        assert!(
+            layout.contains("/// Full-width page section"),
+            "GridCtx::section is the preferred page building block"
+        );
+        // Escape hatch exists but is not the app path.
+        assert!(layout.contains("pub fn page_scroll("));
     }
 
     #[test]
