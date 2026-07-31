@@ -6,7 +6,8 @@ must not use Bitstream/DejaVu names to endorse derived works without
 permission. Full text: https://dejavu-fonts.github.io/License.html
 
 Generated with fonttools pyftsubset for UI punctuation/symbols only
-(arrows, bullets, dashes, quotes, check marks).
+(arrows, disclosure triangles ▾/▴/▼/▲/▸/◂, bullets, dashes, quotes,
+check marks). Rebuild: `scripts/rebuild-symbols-ttf.sh`.
 
 ---
 
