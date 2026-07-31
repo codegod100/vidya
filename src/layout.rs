@@ -191,8 +191,8 @@ pub fn compact_card(
     ui.allocate_ui_with_layout(Vec2::new(outer, 0.0), Layout::top_down(Align::Min), |ui| {
         ui.set_min_width(outer);
         ui.set_max_width(outer);
-        // Clip so any mis-measure cannot paint past the budget.
-        ui.set_clip_rect(ui.max_rect());
+        // Do NOT set_clip_rect here: max_rect starts with height 0 before
+        // children run, which would hide all content (blank window).
         theme.card_frame().show(ui, |ui| {
             ui.set_min_width(inner);
             ui.set_max_width(inner);
@@ -468,11 +468,10 @@ pub fn grid_cols(
     };
     let cell_max = col_max.iter().copied().fold(24.0_f32, f32::max);
 
-    // Pin + clip the container so nothing paints past residual width.
-    let clip = ui.available_rect_before_wrap();
+    // Pin container to residual width (no early clip_rect — that can zero out
+    // height before layout and blank the whole page).
     ui.scope(|ui| {
         ui.set_max_width(avail);
-        ui.set_clip_rect(clip.intersect(ui.clip_rect()));
         Grid::new(id)
             .num_columns(n)
             .spacing(spacing)
