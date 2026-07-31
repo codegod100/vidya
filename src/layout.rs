@@ -46,11 +46,16 @@ pub const METRIC_BPS_CHARS: usize = 14;
 /// Character width of a fixed monospace event-rate cell ([`metric_rate`]).
 pub const METRIC_RATE_CHARS: usize = 10;
 
-/// Pixel width for a metric cell painted with caption monospace + padding.
+/// Minimum pixel width for a metric cell of `chars` monospace glyphs + padding.
+///
+/// Used as a **floor** for [`ColSpec::MetricBps`] / [`MetricRate`]. Actual cells
+/// still grow via [`metric_cell`] if the painted string is wider.
 pub fn metric_cell_px(theme: &Theme, chars: usize) -> f32 {
-    // Approximate monospace advance ≈ 0.6 × font size; pad for cell breathing room.
-    let advance = theme.type_scale.caption * 0.62;
-    advance * chars as f32 + theme.spacing.sm * 2.0
+    // Monospace advance is typically ~0.6–0.65em; use 0.72 so columns never
+    // undershoot common caption sizes (was 0.62 and clipped padded metrics).
+    let advance = theme.type_scale.caption * 0.72;
+    let pad = theme.spacing.md + theme.spacing.sm;
+    advance * chars as f32 + pad
 }
 
 /// Left-pad `s` to exactly `width` characters (Unicode scalar count).
@@ -454,40 +459,38 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
         self.advance();
     }
 
-    /// Column header (caption, strong, secondary). Metric cols right-align.
+    /// Column header (caption, strong, secondary). Metric cols right-align
+    /// and are at least as wide as the header text.
     pub fn heading(&mut self, text: &str) {
-        if let Some(width) = self.width_hint() {
+        let size = self.theme.type_scale.caption;
+        let rt = RichText::new(text)
+            .size(size)
+            .strong()
+            .color(self.theme.palette.text_secondary);
+        if let Some(hint) = self.width_hint() {
+            let need = measure_text(self.ui, text, size, false) + self.theme.spacing.sm;
+            let width = hint.max(need);
             self.ui.allocate_ui_with_layout(
-                Vec2::new(width, self.theme.type_scale.caption + 6.0),
+                Vec2::new(width, size + 6.0),
                 Layout::right_to_left(Align::Center),
                 |ui| {
                     ui.set_min_width(width);
-                    ui.label(
-                        RichText::new(text)
-                            .size(self.theme.type_scale.caption)
-                            .strong()
-                            .color(self.theme.palette.text_secondary),
-                    );
+                    ui.add(egui::Label::new(rt.clone()).extend());
                 },
             );
         } else {
-            self.ui.label(
-                RichText::new(text)
-                    .size(self.theme.type_scale.caption)
-                    .strong()
-                    .color(self.theme.palette.text_secondary),
-            );
+            self.ui.add(egui::Label::new(rt).extend());
         }
         self.advance();
     }
 
-    /// Primary body text (flex).
+    /// Primary body text (flex) — sizes to content (no truncate).
     pub fn text(&mut self, text: &str) {
         table_text(self.ui, self.theme, text, true);
         self.advance();
     }
 
-    /// Secondary caption text (flex).
+    /// Secondary caption text (flex) — sizes to content.
     pub fn dim(&mut self, text: &str) {
         table_text(self.ui, self.theme, text, false);
         self.advance();
@@ -495,16 +498,16 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
 
     /// Warning-colored strong caption (e.g. anomaly process name).
     pub fn warn(&mut self, text: &str) {
-        self.ui.label(
-            RichText::new(text)
-                .size(self.theme.type_scale.caption)
-                .strong()
-                .color(self.theme.palette.warning),
-        );
+        let rt = RichText::new(text)
+            .size(self.theme.type_scale.caption)
+            .strong()
+            .color(self.theme.palette.warning);
+        self.ui.add(egui::Label::new(rt).extend());
         self.advance();
     }
 
-    /// Fixed-width right-aligned monospace metric (`text` from [`metric_bps`] / [`metric_rate`]).
+    /// Right-aligned monospace metric (`text` from [`metric_bps`] / [`metric_rate`]).
+    /// Width is at least the column hint **and** the painted string.
     pub fn metric(&mut self, text: &str) {
         let w = self.metric_width();
         metric_cell(self.ui, self.theme, w, text, false);
@@ -539,10 +542,36 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
 
 // ── Metrics / tables ────────────────────────────────────────────────────────
 
-/// Paint a fixed-width monospace metric string, right-edge aligned in `width` px.
-pub fn metric_cell(ui: &mut Ui, theme: &Theme, width: f32, text: &str, secondary: bool) {
+/// Measure laid-out width of text (no wrap).
+fn measure_text(ui: &Ui, text: &str, size: f32, mono: bool) -> f32 {
+    let family = if mono {
+        egui::FontFamily::Monospace
+    } else {
+        egui::FontFamily::Proportional
+    };
+    let font = FontId::new(size, family);
+    ui.fonts(|f| {
+        f.layout_no_wrap(text.to_owned(), font, egui::Color32::WHITE)
+            .size()
+            .x
+    })
+}
+
+/// Measure monospace caption width for `text`.
+pub fn measure_mono_caption(ui: &Ui, theme: &Theme, text: &str) -> f32 {
+    measure_text(ui, text, theme.type_scale.caption, true)
+}
+
+/// Paint a monospace metric string, right-edge aligned.
+///
+/// Allocated width is `max(min_width, measured text + padding)` so columns
+/// always fit their content even when the ColSpec floor is tight.
+pub fn metric_cell(ui: &mut Ui, theme: &Theme, min_width: f32, text: &str, secondary: bool) {
+    let pad = theme.spacing.sm + theme.spacing.xs.max(2.0);
+    let text_w = measure_mono_caption(ui, theme, text);
+    let width = min_width.max(text_w + pad).max(1.0);
     let h = theme.type_scale.caption + 8.0;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(width.max(1.0), h), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, h), Sense::hover());
     if !ui.is_rect_visible(rect) {
         return;
     }
@@ -621,6 +650,8 @@ pub fn data_table(
 }
 
 /// Flex text cell for [`data_table`] rows / grid rows.
+///
+/// Uses **extend** (no wrap/truncate) so the grid column grows to fit the text.
 pub fn table_text(ui: &mut Ui, theme: &Theme, text: &str, primary: bool) {
     let color = if primary {
         theme.palette.text
@@ -637,7 +668,7 @@ pub fn table_text(ui: &mut Ui, theme: &Theme, text: &str, primary: bool) {
                 })
                 .color(color),
         )
-        .truncate(),
+        .extend(),
     );
 }
 
@@ -706,6 +737,27 @@ mod tests {
         let b = metric_cell_px(&th, METRIC_RATE_CHARS);
         assert!(a > b);
         assert!(a > 40.0);
+        // Floor must cover full padded glyph run (chars × 0.72em + pad).
+        let floor = th.type_scale.caption * 0.72 * METRIC_BPS_CHARS as f32;
+        assert!(
+            a >= floor,
+            "metric_cell_px={a} must be >= glyph floor {floor}"
+        );
+    }
+
+    #[test]
+    fn metric_bps_string_never_exceeds_char_budget() {
+        // Ensures the padded formatter and char budget stay in sync so
+        // metric_cell_px floors remain meaningful.
+        for bps in [0.0, 1.0, 512.0, 1024.0 * 50.0, 1024.0 * 1024.0 * 9.9] {
+            let s = metric_bps(bps);
+            assert!(
+                s.chars().count() <= METRIC_BPS_CHARS
+                    || s.chars().count() == METRIC_BPS_CHARS,
+                "unexpected width for {s:?}"
+            );
+            assert_eq!(s.chars().count(), METRIC_BPS_CHARS);
+        }
     }
 
     #[test]

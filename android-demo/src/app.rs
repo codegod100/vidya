@@ -10,8 +10,9 @@ use eframe::egui::{
     ViewportCommand,
 };
 use vidya::{
-    apply, body, button, checkbox, destructive_button, dim_label, emoji_icon, emoji_pack_len, icon,
-    primary_button, reserve_system_chrome, text_field_multiline, title, title_2, Icon, Mode, Theme,
+    apply, body, button, card, checkbox, destructive_button, dim_label, emoji_icon, emoji_pack_len,
+    grid_cols, hflow, icon, primary_button, reserve_system_chrome, text_field_multiline, title,
+    title_2, two_col, ColSpec, Icon, Mode, Theme,
 };
 
 /// Desktop / host entry.
@@ -533,7 +534,7 @@ impl DemoApp {
                  styled widgets. It tracks the feel of modern desktop HIG without linking GTK.",
             );
             ui.add_space(th.spacing.md);
-            ui.horizontal_wrapped(|ui| {
+            hflow(ui, th, |ui| {
                 if primary_button(ui, th, "Get started").clicked() {
                     self.selected_nav = Nav::Typography;
                     self.toast = Some("Jump to Typography →".into());
@@ -580,16 +581,83 @@ impl DemoApp {
         card(ui, th, |ui| {
             title_2(ui, th, "Design tokens");
             ui.add_space(th.spacing.sm);
+            dim_label(ui, th, "grid_cols + row DSL — striped key / value table");
+            ui.add_space(th.spacing.md);
             let tokens = [
                 ("spacing", "4 · 6 · 12 · 18 · 24"),
                 ("radius", "6 · 9 · 12"),
                 ("control", "34px height"),
                 ("type", "20 / 16 / 14 / 12"),
             ];
-            for (key, value) in tokens {
-                token_row(ui, th, key, value);
-                ui.add_space(th.spacing.sm);
-            }
+            grid_cols(
+                ui,
+                th,
+                "overview_tokens",
+                &[ColSpec::Flex, ColSpec::Flex],
+                |g| {
+                    g.row(|r| {
+                        r.heading("Token");
+                        r.heading("Value");
+                    });
+                    for (key, value) in tokens {
+                        g.row(|r| {
+                            r.dim(key);
+                            r.text(value);
+                        });
+                    }
+                },
+            );
+        });
+
+        ui.add_space(th.spacing.md);
+
+        // Showcase the metric column specs (avoids “waterfall” rates).
+        card(ui, th, |ui| {
+            title_2(ui, th, "Grid DSL — metrics");
+            ui.add_space(th.spacing.sm);
+            dim_label(
+                ui,
+                th,
+                "ColSpec::MetricBps / MetricRate keep throughput columns right-edge aligned.",
+            );
+            ui.add_space(th.spacing.md);
+            let rows = [
+                ("chrome", "/usr/bin/google-chrome", 12_582_912.0_f64, 48.2_f64),
+                ("rustc", "/home/nandi/.cargo/bin/rustc", 3_145_728.0, 12.0),
+                ("waydroid", "/usr/bin/waydroid", 524_288.0, 2.4),
+                ("idle", "—", 0.0, 0.0),
+            ];
+            grid_cols(
+                ui,
+                th,
+                "overview_metrics",
+                &[
+                    ColSpec::Flex,
+                    ColSpec::Flex,
+                    ColSpec::MetricBps,
+                    ColSpec::MetricRate,
+                ],
+                |g| {
+                    g.row(|r| {
+                        r.heading("Name");
+                        r.heading("Path");
+                        r.heading("Write");
+                        r.heading("Freq");
+                    });
+                    for (name, path, bps, rate) in rows {
+                        g.row(|r| {
+                            if bps > 8_000_000.0 {
+                                r.warn(name);
+                            } else {
+                                r.text(name);
+                            }
+                            r.dim(path);
+                            r.metric_bps(bps);
+                            r.metric_rate(rate);
+                        });
+                    }
+                },
+            );
         });
     }
 
@@ -602,13 +670,42 @@ impl DemoApp {
         );
 
         card(ui, th, |ui| {
-            type_row(ui, th, "Title", th.type_scale.title, true);
+            title_2(ui, th, "Type scale");
             ui.add_space(th.spacing.md);
-            type_row(ui, th, "Title 2", th.type_scale.title_2, true);
-            ui.add_space(th.spacing.md);
-            type_row(ui, th, "Body", th.type_scale.body, false);
-            ui.add_space(th.spacing.md);
-            type_row(ui, th, "Caption / dim", th.type_scale.caption, false);
+            let samples = [
+                ("Title", th.type_scale.title, true),
+                ("Title 2", th.type_scale.title_2, true),
+                ("Body", th.type_scale.body, false),
+                ("Caption / dim", th.type_scale.caption, false),
+            ];
+            grid_cols(
+                ui,
+                th,
+                "type_scale",
+                &[ColSpec::Fixed(110.0), ColSpec::Flex],
+                |g| {
+                    g.row(|r| {
+                        r.heading("Role");
+                        r.heading("Sample");
+                    });
+                    for (role, size, strong) in samples {
+                        g.row(|r| {
+                            r.dim(role);
+                            r.cell(|ui| {
+                                let mut rt = RichText::new(format!(
+                                    "The quick brown fox — {size:.0}px"
+                                ))
+                                .size(size)
+                                .color(th.palette.text);
+                                if strong {
+                                    rt = rt.strong();
+                                }
+                                ui.label(rt);
+                            });
+                        });
+                    }
+                },
+            );
         });
 
         ui.add_space(th.spacing.md);
@@ -691,7 +788,7 @@ impl DemoApp {
         card(ui, th, |ui| {
             title_2(ui, th, "Status colors");
             ui.add_space(th.spacing.md);
-            hflow(ui, |ui| {
+            hflow(ui, th, |ui| {
                 status_pill(ui, th, "Success", th.palette.success);
                 status_pill(ui, th, "Warning", th.palette.warning);
                 status_pill(ui, th, "Error", th.palette.destructive);
@@ -741,9 +838,11 @@ impl DemoApp {
             "Window → view → card → popover layers, with soft 1px borders and gentle radius.",
         );
 
-        // Layer stack visualization
+        // Layer stack as a grid table (name · swatch · hex)
         card(ui, th, |ui| {
             title_2(ui, th, "Layer stack");
+            ui.add_space(th.spacing.sm);
+            dim_label(ui, th, "Surface tokens as a grid_cols table");
             ui.add_space(th.spacing.md);
 
             let layers = [
@@ -753,34 +852,38 @@ impl DemoApp {
                 ("popover_bg", th.palette.popover_bg),
             ];
 
-            for (i, (name, color)) in layers.iter().enumerate() {
-                let inset = (i as f32) * th.spacing.md;
-                let outer = ui.available_width();
-                ui.set_max_width(outer);
-                egui::Frame::new()
-                    .fill(*color)
-                    .stroke(Stroke::new(1.0, th.palette.border_soft))
-                    .corner_radius(th.spacing.radius_md)
-                    .inner_margin(egui::Margin::same(th.spacing.md as i8))
-                    .show(ui, |ui| {
-                        let w = ui.available_width().max(1.0);
-                        ui.set_min_width(w);
-                        ui.set_max_width(w);
-                        ui.add_space(inset.min(1.0)); // keep structure
-                        ui.horizontal(|ui| {
-                            ui.set_min_width(ui.available_width());
-                            ui.label(
-                                RichText::new(*name)
-                                    .size(th.type_scale.body)
-                                    .color(th.palette.text),
-                            );
-                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                dim_label(ui, th, &format_hex(*color));
-                            });
-                        });
+            grid_cols(
+                ui,
+                th,
+                "surface_layers",
+                &[ColSpec::Flex, ColSpec::Fixed(36.0), ColSpec::Fixed(88.0)],
+                |g| {
+                    g.row(|r| {
+                        r.heading("Layer");
+                        r.heading("");
+                        r.heading("Hex");
                     });
-                ui.add_space(th.spacing.sm);
-            }
+                    for (name, color) in layers {
+                        g.row(|r| {
+                            r.text(name);
+                            r.cell(|ui| {
+                                let (rect, _) = ui.allocate_exact_size(
+                                    Vec2::new(28.0, 18.0),
+                                    Sense::hover(),
+                                );
+                                ui.painter().rect_filled(rect, 4.0, color);
+                                ui.painter().rect_stroke(
+                                    rect,
+                                    4.0,
+                                    Stroke::new(1.0, th.palette.border_soft),
+                                    egui::StrokeKind::Outside,
+                                );
+                            });
+                            r.dim(&format_hex(color));
+                        });
+                    }
+                },
+            );
         });
 
         ui.add_space(th.spacing.md);
@@ -876,7 +979,7 @@ impl DemoApp {
             card(ui, th, |ui| {
                 title_2(ui, th, group);
                 ui.add_space(th.spacing.md);
-                hflow(ui, |ui| {
+                hflow(ui, th, |ui| {
                     for (name, color) in *swatches {
                         swatch(ui, th, name, *color);
                     }
@@ -980,107 +1083,6 @@ impl DemoApp {
 }
 
 // ── helpers ────────────────────────────────────────────────────────
-
-/// Card that fills the parent column, without overflowing past it.
-///
-/// Frame outer size = content + inner_margin + stroke. The content UI’s
-/// `available_width` is already that residual — pin to it. Never force
-/// content to the *outer* width (that blows past the viewport).
-fn card(ui: &mut egui::Ui, th: &Theme, add: impl FnOnce(&mut egui::Ui)) {
-    let outer = ui.available_width();
-    ui.set_max_width(outer);
-    th.card_frame().show(ui, |ui| {
-        let inner = ui.available_width().max(1.0);
-        ui.set_min_width(inner);
-        ui.set_max_width(inner);
-        add(ui);
-    });
-}
-
-/// Wrapping row capped to parent width (no vertical clip).
-fn hflow(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
-    let w = ui.available_width();
-    ui.scope(|ui| {
-        ui.set_max_width(w);
-        ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
-        ui.horizontal_wrapped(add);
-    });
-}
-
-/// Two columns when there is room; stack vertically before the edge would clip.
-///
-/// Uses [`Ui::columns`] so each column gets a real width *and* grows with its
-/// content height (the old allocate_ui height=0 path clipped body text).
-fn two_col(
-    ui: &mut egui::Ui,
-    th: &Theme,
-    min_col: f32,
-    left: impl FnOnce(&mut egui::Ui),
-    right: impl FnOnce(&mut egui::Ui),
-) {
-    let gap = th.spacing.md;
-    let avail = ui.available_width();
-    if avail >= min_col * 2.0 + gap {
-        // columns() splits width evenly and sizes height to the taller child.
-        ui.columns(2, |cols| {
-            cols[0].set_width(cols[0].available_width());
-            left(&mut cols[0]);
-            cols[1].set_width(cols[1].available_width());
-            right(&mut cols[1]);
-        });
-    } else {
-        left(ui);
-        ui.add_space(gap);
-        right(ui);
-    }
-}
-
-/// Full-width row: key left, value right — fills the card content, not past it.
-fn token_row(ui: &mut egui::Ui, th: &Theme, key: &str, value: &str) {
-    let outer = ui.available_width();
-    ui.set_max_width(outer);
-    egui::Frame::new()
-        .fill(th.palette.popover_bg)
-        .stroke(Stroke::new(1.0, th.palette.border_soft))
-        .corner_radius(th.spacing.radius_sm)
-        .inner_margin(egui::Margin::symmetric(th.spacing.md as i8, th.spacing.sm as i8))
-        .show(ui, |ui| {
-            // available_width is already inset by margin/stroke — fill that only.
-            let w = ui.available_width().max(1.0);
-            ui.set_min_width(w);
-            ui.set_max_width(w);
-            ui.horizontal(|ui| {
-                ui.set_min_width(ui.available_width());
-                ui.label(
-                    RichText::new(key)
-                        .size(th.type_scale.caption)
-                        .color(th.palette.text_secondary),
-                );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(value)
-                            .size(th.type_scale.caption)
-                            .color(th.palette.text)
-                            .strong(),
-                    );
-                });
-            });
-        });
-}
-
-fn type_row(ui: &mut egui::Ui, th: &Theme, role: &str, size: f32, strong: bool) {
-    ui.horizontal(|ui| {
-        ui.set_min_width(120.0);
-        dim_label(ui, th, role);
-        let mut rt = RichText::new(format!("The quick brown fox — {size:.0}px"))
-            .size(size)
-            .color(th.palette.text);
-        if strong {
-            rt = rt.strong();
-        }
-        ui.label(rt);
-    });
-}
 
 fn status_pill(ui: &mut egui::Ui, th: &Theme, label: &str, color: Color32) {
     egui::Frame::new()

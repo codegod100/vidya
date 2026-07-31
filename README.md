@@ -62,10 +62,10 @@ just shots             # Waydroid screencaps → docs/screenshots/mobile/
 
 Sections:
 
-- **Overview** — hero card, design tokens, dark/light pitch  
-- **Typography** — type scale samples and hierarchy  
+- **Overview** — hero card, design tokens + **grid DSL** metrics table, dark/light pitch  
+- **Typography** — type scale samples (grid) and hierarchy  
 - **Actions** — primary / default / destructive buttons, dialog footer, status pills  
-- **Surfaces** — layer stack, card & header frames  
+- **Surfaces** — layer stack table, card & header frames  
 - **Palette** — live semantic swatches (flip the shell to compare)  
 - **Forms** — themed inputs, accent checkbox, slider, combo, progress  
 
@@ -152,7 +152,8 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `page_body` / `central_page` | Scrollable page content capped to the app view |
 | `inset_row` | Soft inset row capped to parent width |
 | `grid` / `grid_cols` | **Grid DSL** — `g.row(|r| { r.text(..); r.metric_bps(..); })` |
-| `ColSpec` | `Flex` / `Fixed` / `MetricBps` / `MetricRate` column hints |
+| `ColSpec` | `Flex` / `Fixed` / `MetricBps` / `MetricRate` (floors; cells grow to fit text) |
+| `metric_cell` | Right-edge mono metric; width = max(hint, measured glyphs + pad) |
 | `RowDsl` | `heading` / `text` / `dim` / `warn` / `metric` / `metric_bps` / `metric_rate` |
 | `metric_bps` / `metric_rate` | Fixed-width monospace rate strings (no staircase columns) |
 | `metric_cell` / `table_metric` / `table_text` | Low-level cells (prefer the row DSL) |
