@@ -162,25 +162,39 @@ pub fn card(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui)) -> InnerRespo
     })
 }
 
+/// Horizontal chrome (inner margin + stroke) added by [`Theme::card_frame`].
+///
+/// Outer card width = content width + this value. Pure / testable.
+pub fn card_frame_chrome_x(theme: &Theme) -> f32 {
+    // card_frame: Margin::same(spacing.md) + Stroke width 1 on each side.
+    theme.spacing.md * 2.0 + 2.0
+}
+
 /// Compact card with a **fixed outer width** that hugs content height.
 ///
 /// Use for gauge tiles and anomaly panels that must not stretch across the
 /// window or absorb leftover horizontal space between siblings.
+///
+/// Outer size is clamped to residual width; content width subtracts frame
+/// chrome so the painted card never exceeds the budget (avoids grid overflow).
 pub fn compact_card(
     ui: &mut Ui,
     theme: &Theme,
     width: f32,
     add: impl FnOnce(&mut Ui),
 ) -> InnerResponse<()> {
-    // Never exceed residual width (grid cell / viewport budget).
-    let w = width.min(ui.available_width()).max(1.0);
-    // Reserve a tight horizontal slot so neighbors cannot paint over us.
-    ui.allocate_ui_with_layout(Vec2::new(w, 0.0), Layout::top_down(Align::Min), |ui| {
-        ui.set_width(w);
-        ui.set_max_width(w);
+    let chrome = card_frame_chrome_x(theme);
+    // Outer size must fit the residual (grid cell / viewport).
+    let outer = width.min(ui.available_width()).max(1.0);
+    let inner = (outer - chrome).max(1.0);
+
+    ui.allocate_ui_with_layout(Vec2::new(outer, 0.0), Layout::top_down(Align::Min), |ui| {
+        ui.set_min_width(outer);
+        ui.set_max_width(outer);
+        // Clip so any mis-measure cannot paint past the budget.
+        ui.set_clip_rect(ui.max_rect());
         theme.card_frame().show(ui, |ui| {
-            let inner = (w - 2.0).max(1.0);
-            ui.set_width(inner);
+            ui.set_min_width(inner);
             ui.set_max_width(inner);
             vstack(ui, theme, add);
         });
@@ -452,11 +466,13 @@ pub fn grid_cols(
     } else {
         distribute_col_max(&col_widths, avail, spacing.x)
     };
-    let cell_max = col_max.iter().copied().fold(40.0_f32, f32::max);
+    let cell_max = col_max.iter().copied().fold(24.0_f32, f32::max);
 
-    // Pin the container; Grid cells still respect per-column max via RowDsl.
+    // Pin + clip the container so nothing paints past residual width.
+    let clip = ui.available_rect_before_wrap();
     ui.scope(|ui| {
         ui.set_max_width(avail);
+        ui.set_clip_rect(clip.intersect(ui.clip_rect()));
         Grid::new(id)
             .num_columns(n)
             .spacing(spacing)
@@ -464,7 +480,6 @@ pub fn grid_cols(
             .max_col_width(cell_max)
             .striped(true)
             .show(ui, |ui| {
-                // Re-assert: grid child ui also must not expand past residual.
                 ui.set_max_width(avail);
                 let mut ctx = GridCtx {
                     ui,
@@ -931,6 +946,28 @@ mod tests {
         let maxes = distribute_col_max(&specs, 400.0, 0.0);
         for w in &maxes {
             assert!((*w - 100.0).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn card_frame_chrome_x_is_margins_plus_stroke() {
+        let th = Theme::dark();
+        // md*2 + 1px stroke each side
+        assert!((card_frame_chrome_x(&th) - (th.spacing.md * 2.0 + 2.0)).abs() < 0.01);
+        assert!(card_frame_chrome_x(&th) > th.spacing.md);
+    }
+
+    #[test]
+    fn four_flex_cols_fit_viewport_budget() {
+        // Same shape as the usage gauge row.
+        let gap = 12.0;
+        let avail = 700.0;
+        let specs = vec![None, None, None, None];
+        let maxes = distribute_col_max(&specs, avail, gap);
+        let sum: f32 = maxes.iter().sum::<f32>() + gap * 3.0;
+        assert!(sum <= avail + 0.01, "sum={sum} avail={avail}");
+        for w in maxes {
+            assert!(w > 50.0);
         }
     }
 }
