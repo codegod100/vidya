@@ -172,21 +172,19 @@ pub fn compact_card(
     width: f32,
     add: impl FnOnce(&mut Ui),
 ) -> InnerResponse<()> {
-    let w = width.max(1.0);
+    // Never exceed residual width (grid cell / viewport budget).
+    let w = width.min(ui.available_width()).max(1.0);
     // Reserve a tight horizontal slot so neighbors cannot paint over us.
-    ui.allocate_ui_with_layout(
-        Vec2::new(w, 0.0),
-        Layout::top_down(Align::Min),
-        |ui| {
-            ui.set_width(w);
-            ui.set_max_width(w);
-            theme.card_frame().show(ui, |ui| {
-                ui.set_width(w - 2.0);
-                ui.set_max_width(w - 2.0);
-                vstack(ui, theme, add);
-            });
-        },
-    )
+    ui.allocate_ui_with_layout(Vec2::new(w, 0.0), Layout::top_down(Align::Min), |ui| {
+        ui.set_width(w);
+        ui.set_max_width(w);
+        theme.card_frame().show(ui, |ui| {
+            let inner = (w - 2.0).max(1.0);
+            ui.set_width(inner);
+            ui.set_max_width(inner);
+            vstack(ui, theme, add);
+        });
+    })
 }
 
 /// Soft-bordered inset row (popover surface) capped to parent width.
@@ -547,13 +545,20 @@ impl<'ui, 'th> RowDsl<'ui, 'th> {
         floor.min(self.col_max()).max(1.0)
     }
 
-    /// Free-form cell, capped to the column max width.
+    /// Free-form cell, sized to the column max width (top-aligned in the row).
     pub fn cell(&mut self, add: impl FnOnce(&mut Ui)) {
-        let max_w = self.col_max();
-        self.ui.scope(|ui| {
-            ui.set_max_width(max_w);
-            add(ui);
-        });
+        let max_w = self.col_max().max(1.0);
+        // Allocate an exact-width slot so all cells in the row share one baseline
+        // and cannot overflow into the next column (staircase / wrap artifact).
+        self.ui.allocate_ui_with_layout(
+            Vec2::new(max_w, 0.0),
+            Layout::top_down(Align::Min),
+            |ui| {
+                ui.set_min_width(max_w);
+                ui.set_max_width(max_w);
+                add(ui);
+            },
+        );
         self.advance();
     }
 
