@@ -98,6 +98,21 @@ if primary_button(ui, &th, "Open").clicked() {
 checkbox(ui, &th, &mut sync, "Sync preferences");
 ```
 
+### Window icon
+
+Embed a PNG and attach it to the viewport (set Wayland `app_id` to match your `.desktop`):
+
+```rust
+use egui::ViewportBuilder;
+use vidya::with_app_icon_id;
+
+let viewport = with_app_icon_id(
+    ViewportBuilder::default().with_title("I/O Usage"),
+    "usage",
+    include_bytes!("../assets/usage-256.png"),
+);
+```
+
 ## Nix flake
 
 | Output | Role |
@@ -165,6 +180,11 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `data_table` | Index-callback table helper on top of the grid DSL |
 | `reserve_system_chrome` / `system_chrome` | Android status + nav safe areas |
 | `top_header` | Header panel with system chrome already reserved |
+| **App icon** | Embed a PNG as the native window icon |
+| `icon_data_from_png` | Decode PNG bytes → `egui::IconData` |
+| `with_app_icon` | `ViewportBuilder` + embedded PNG icon |
+| `with_app_icon_id` | Same + Wayland `app_id` (match `.desktop` / `StartupWMClass`) |
+| `try_with_app_icon` / `try_with_app_icon_id` | Fallible variants |
 
 ## License
 

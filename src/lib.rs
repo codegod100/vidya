@@ -31,6 +31,18 @@
 //! });
 //! ```
 //!
+//! Window icon (embed a PNG with `include_bytes!`):
+//! ```ignore
+//! use egui::ViewportBuilder;
+//! use vidya::with_app_icon_id;
+//!
+//! let viewport = with_app_icon_id(
+//!     ViewportBuilder::default().with_title("usage"),
+//!     "usage", // Wayland app_id ↔ .desktop StartupWMClass
+//!     include_bytes!("../assets/usage-256.png"),
+//! );
+//! ```
+//!
 //! ```ignore
 //! use vidya::{apply_dark, Theme};
 //!
@@ -38,12 +50,17 @@
 //! if vidya::primary_button(ui, &Theme::dark(), "Open").clicked() { /* … */ }
 //! ```
 
+mod app_icon;
 mod chrome;
 mod fonts;
 mod icons;
 mod layout;
 mod theme;
 
+pub use app_icon::{
+    icon_data_from_png, try_with_app_icon, try_with_app_icon_id, with_app_icon, with_app_icon_id,
+    AppIconError,
+};
 pub use chrome::{
     reserve_system_chrome, set_system_chrome, system_chrome, top_header, SystemChrome,
 };
