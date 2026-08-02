@@ -1,10 +1,11 @@
-//! Extra glyph coverage for UI punctuation.
+//! Extra glyph coverage for UI punctuation and math-in-prose Unicode.
 //!
 //! egui’s default Ubuntu Light lacks many symbols used in HIG-style copy
-//! (`→`, `●`, `○`, `▾`/`▴`, en/em dashes, curly quotes, …). On Android those
-//! codepoints render as hollow boxes (“tofu”).
+//! (`→`, `●`, `○`, `▾`/`▴`, en/em dashes, curly quotes, …) and common LLM
+//! math outside `$…$` (`ℝ`, `ⁿ`, `∑`, Greek, …). On Android those codepoints
+//! render as hollow boxes (“tofu”).
 //!
-//! [`install_symbol_font`] registers a tiny DejaVu Sans subset as a **fallback**
+//! [`install_symbol_font`] registers a DejaVu Sans subset as a **fallback**
 //! so primary text stays Ubuntu, but missing symbols still draw.
 
 use egui::{
@@ -12,7 +13,7 @@ use egui::{
     Context, FontData, FontFamily,
 };
 
-/// Subset of DejaVu Sans (~23 KiB) covering common UI symbols.
+/// Subset of DejaVu Sans covering UI symbols + common math-in-prose Unicode.
 /// See `assets/NOTICE` and `scripts/rebuild-symbols-ttf.sh`.
 static VIDYA_SYMBOLS_TTF: &[u8] = include_bytes!("../assets/vidya-symbols.ttf");
 

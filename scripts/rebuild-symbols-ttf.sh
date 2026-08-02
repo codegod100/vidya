@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Rebuild assets/vidya-symbols.ttf from DejaVu Sans (pyftsubset).
 #
-# Keeps the font small while covering HIG-style UI punctuation that Ubuntu
-# Light lacks on Android (arrows, bullets, disclosure triangles, quotes, …).
+# Keeps the font small while covering glyphs Ubuntu Light lacks:
+#   - HIG-style UI punctuation (arrows, bullets, disclosure triangles, quotes)
+#   - Common math/prose Unicode LLMs emit outside $…$ (ℝ, ⁿ, ∑, Greek, …)
+# On Android / egui those otherwise render as hollow boxes (“tofu”).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,14 +23,22 @@ find_dejavu() {
   )
   # shellcheck disable=SC2068
   for f in ${candidates[@]}; do
+    # Prefer the Book/Regular face — Condensed lacks some math glyphs.
+    if [[ -f "$f" && "$(basename "$f")" == "DejaVuSans.ttf" ]]; then
+      echo "$f"
+      return
+    fi
+  done
+  for f in ${candidates[@]}; do
     if [[ -f "$f" ]]; then
       echo "$f"
       return
     fi
   done
-  # fc-list fallback
+  # fc-list fallback (file path only; avoid Condensed)
   if command -v fc-list >/dev/null 2>&1; then
-    fc-list "DejaVu Sans:style=Book" file 2>/dev/null | head -1 | cut -d: -f1
+    fc-list -f '%{file}\n' "DejaVu Sans:style=Book" 2>/dev/null \
+      | grep -E 'DejaVuSans\.ttf$' | head -1
     return
   fi
   return 1
@@ -46,11 +56,18 @@ if ! command -v pyftsubset >/dev/null 2>&1; then
 fi
 
 # Keep in sync with assets/NOTICE.
+# Ranges cover LLM math-in-prose; singletons cover UI punctuation.
 UNICODES=$(
   cat <<'EOF' | tr '\n' ',' | sed 's/,$//'
 U+00B0
+U+00B1
+U+00B2
+U+00B3
 U+00B7
+U+00B9
 U+00D7
+U+00F7
+U+0370-03FF
 U+2013
 U+2014
 U+2018
@@ -62,11 +79,10 @@ U+2023
 U+2026
 U+2039
 U+203A
-U+2190
-U+2191
-U+2192
-U+2193
-U+21D2
+U+2070-209F
+U+2100-214F
+U+2190-21FF
+U+2200-22FF
 U+25A0
 U+25A1
 U+25B2
