@@ -53,6 +53,7 @@
 mod app_icon;
 mod chrome;
 mod fonts;
+mod hotkeys;
 mod icons;
 mod layout;
 mod theme;
@@ -62,9 +63,13 @@ pub use app_icon::{
     AppIconError,
 };
 pub use chrome::{
-    reserve_system_chrome, set_system_chrome, system_chrome, top_header, SystemChrome,
+    dialog, reserve_system_chrome, set_system_chrome, system_chrome, top_header, SystemChrome,
 };
 pub use fonts::install_symbol_font;
+pub use hotkeys::{
+    command_glyph, command_pressed, command_shift_shortcut_label, command_shortcut_label,
+    consume_command, consume_command_shift, consume_escape, escape_label, is_macos,
+};
 pub use icons::{
     emoji_icon, emoji_icon_colored, emoji_pack_len, has_emoji_icon, icon, icon_colored,
     icon_for_emoji, normalize_emoji, paint_emoji_in, paint_icon, paint_icon_in, reaction_chip,

@@ -12,7 +12,7 @@
 //! `AndroidApp::content_rect` or WindowInsets) so reserves match the device —
 //! hardcoded fallbacks are intentionally tight for modern gesture-nav phones.
 
-use egui::{Context, Frame, Id, Margin, Sense, Ui};
+use egui::{Align2, Context, Frame, Id, Margin, Sense, Ui, WidgetText, Window};
 
 use crate::Theme;
 
@@ -157,4 +157,24 @@ pub fn top_header(ctx: &Context, theme: &Theme, add_contents: impl FnOnce(&mut U
         .frame(theme.header_frame())
         .show_separator_line(false)
         .show(ctx, add_contents);
+}
+
+/// Centered modal-style window with themed card chrome.
+///
+/// Defaults: non-collapsible, **resizable**, centered, [`Theme::card_frame`].
+/// Chain `.default_size` / `.min_width` / `.resizable(false)` as needed, then
+/// `.show`.
+///
+/// ```ignore
+/// vidya::dialog("Rename", &theme)
+///     .default_width(360.0)
+///     .min_width(280.0)
+///     .show(ctx, |ui| { /* … */ });
+/// ```
+pub fn dialog<'a>(title: impl Into<WidgetText> + 'a, theme: &Theme) -> Window<'a> {
+    Window::new(title)
+        .collapsible(false)
+        .resizable(true)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .frame(theme.card_frame())
 }

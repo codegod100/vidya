@@ -2,7 +2,7 @@
 
 GNOME/HIG-inspired **theme layer for [egui](https://github.com/emilk/egui)** — no GTK.
 
-Calm charcoal shells, a clear blue accent, soft borders, and a short type/spacing scale. Dark is the default; light is one call away.
+Calm charcoal shells, a clear blue accent, soft borders, and a short type/spacing scale. **Dark is the product default** — ship `apply_dark` / `Theme::dark()` and stop there. Light (`Theme::light` / `apply_light`) exists for the showcase and for apps that explicitly need it; do not copy the demo’s dark/light toggle into every app.
 
 **Repo:** [tangled.org/nandi.uk/vidya](https://tangled.org/nandi.uk/vidya)
 
@@ -39,7 +39,7 @@ On **Android** (edge-to-edge NativeActivity), call `reserve_system_chrome(ctx, &
 
 ## Demo
 
-An interactive showcase walks through overview, typography, actions, surfaces, palette swatches, and forms (with dark/light toggle).
+An interactive showcase walks through overview, typography, actions, surfaces, palette swatches, and forms. The demo includes a dark/light toggle so you can compare palettes — that control is for the showcase, not a recommended app pattern.
 
 ```bash
 nix run                  # apps.default → vidya-demo
@@ -62,7 +62,7 @@ just shots             # Waydroid screencaps → docs/screenshots/mobile/
 
 Sections:
 
-- **Overview** — hero card, design tokens + **grid DSL** metrics table, dark/light pitch  
+- **Overview** — hero card, design tokens + **grid DSL** metrics table (demo can flip to light)  
 - **Typography** — type scale samples (grid) and hierarchy  
 - **Actions** — primary / default / destructive buttons, dialog footer, status pills  
 - **Surfaces** — layer stack table, card & header frames  
@@ -79,6 +79,8 @@ just shots     # adb screencap per section → docs/screenshots/mobile/
 ```
 
 ## Use
+
+Apps should start dark-only:
 
 ```toml
 [dependencies]
@@ -97,6 +99,8 @@ if primary_button(ui, &th, "Open").clicked() {
 }
 checkbox(ui, &th, &mut sync, "Sync preferences");
 ```
+
+`Theme::light()` / `apply_light` are available when an app truly needs a light shell. Prefer not to expose a theme toggle unless that is a deliberate product choice (the Vidya demo does it to exercise both palettes).
 
 ### Window icon
 
@@ -141,8 +145,8 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 
 | Item | Role |
 |------|------|
-| `Theme::dark()` / `light()` | Palette + spacing + type scale |
-| `apply` / `apply_dark` / `apply_light` | Install on `egui::Context` (+ symbol font) |
+| `Theme::dark()` / `light()` | Palette + spacing + type scale (`dark` for apps; `light` optional) |
+| `apply` / `apply_dark` / `apply_light` | Install on `egui::Context` (+ symbol font); prefer `apply_dark` |
 | `install_symbol_font` | Fallback glyphs for arrows / disclosure triangles / bullets / quotes |
 | `emoji_icon` / `paint_emoji_in` / `has_emoji_icon` | Full Twemoji color set by codepoint |
 | `Icon` / `icon` / `paint_icon_in` | Named shortcuts + stroke Plus / Copy |
@@ -152,8 +156,11 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `checkbox` | Accent-filled checkbox with drawn checkmark |
 | `status_dot` | Live/offline circle (drawn — no Unicode tofu on Android) |
 | `text_field_singleline` / `text_field_multiline` | Text inputs with field padding (fill parent width) |
+| `consume_command` / `consume_escape` | Consume Cmd/Ctrl+key or Esc (platform-aware) |
+| `command_shortcut_label` / `escape_label` | `"Ctrl+F"` / `"⌘F"` / `"Esc"` for tooltips |
 | `title` / `title_2` / `body` / `dim_label` | Text roles |
 | `Theme::header_frame` / `card_frame` / `page_frame` | Layout chrome |
+| `dialog` | Centered resizable window with `card_frame` (chain size / `.show`) |
 | `Theme::text_edit_margin` | Inner field padding (12×8 default) |
 | **Layout composition** | Prefer these over raw `set_max_width` / `Layout` plumbing |
 | `fit_width` / `fill_width` | Pin children to residual width (no edge overflow) |
