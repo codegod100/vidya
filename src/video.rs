@@ -273,13 +273,15 @@ pub fn video_player(
     let size = Vec2::new(max_w, height);
 
     let mut action = VideoPlayerAction::None;
+    let mut clicked = false;
 
     let frame_resp = egui::Frame::new()
         .fill(Color32::from_rgb(12, 12, 14))
         .stroke(Stroke::new(1.0_f32, p.border_soft))
         .corner_radius(sp.radius_sm)
         .show(ui, |ui| {
-            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            let (rect, sense_resp) = ui.allocate_exact_size(size, Sense::click());
+            clicked = sense_resp.clicked();
 
             if let Some(tex) = state.texture.as_ref() {
                 egui::Image::new((tex.id(), size)).paint_at(ui, rect);
@@ -343,29 +345,21 @@ pub fn video_player(
                     Color32::from_rgb(230, 230, 235),
                 );
             }
+
+            let tip = if state.unsupported {
+                state
+                    .error
+                    .as_deref()
+                    .unwrap_or("Video not supported — open externally")
+            } else if state.playing {
+                "Pause"
+            } else {
+                "Play"
+            };
+            sense_resp.on_hover_text(tip).on_hover_cursor(CursorIcon::PointingHand);
         });
 
-    let tip = if state.unsupported {
-        state
-            .error
-            .as_deref()
-            .unwrap_or("Video not supported — open externally")
-    } else if state.playing {
-        "Pause"
-    } else {
-        "Play"
-    };
-
-    let resp = ui
-        .interact(
-            frame_resp.response.rect,
-            ui.id().with("vidya_video").with(state.content_id),
-            Sense::click(),
-        )
-        .on_hover_text(tip)
-        .on_hover_cursor(CursorIcon::PointingHand);
-
-    if resp.clicked() {
+    if clicked {
         if state.unsupported {
             if opts.open_url_on_unsupported.is_some() {
                 action = VideoPlayerAction::OpenExternally;
@@ -375,5 +369,5 @@ pub fn video_player(
         }
     }
 
-    (resp, action)
+    (frame_resp.response, action)
 }
