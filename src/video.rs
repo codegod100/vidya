@@ -282,8 +282,7 @@ pub fn video_player(
             let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
 
             if let Some(tex) = state.texture.as_ref() {
-                egui::Image::new((tex.id(), size))
-                    .paint_at(ui, rect);
+                egui::Image::new((tex.id(), size)).paint_at(ui, rect);
             } else {
                 ui.painter()
                     .rect_filled(rect, sp.radius_sm, Color32::from_rgb(18, 18, 22));
@@ -294,7 +293,7 @@ pub fn video_player(
                 ui.painter().rect_filled(
                     rect,
                     sp.radius_sm,
-                    Color32::from_rgba_unmultiplied(0, 0, 0, 90),
+                    Color32::from_rgba_unmultiplied(0, 0, 0, 48),
                 );
                 let play_r = (height * 0.18).clamp(16.0, 28.0);
                 let center = rect.center();
@@ -312,7 +311,14 @@ pub fn video_player(
                 ));
             }
 
-            if let Some(name) = opts.title.as_deref() {
+            let footer = if let Some(err) = state.error.as_deref() {
+                Some(err.to_string())
+            } else if state.playing {
+                Some("Playing…".into())
+            } else {
+                opts.title.clone()
+            };
+            if let Some(name) = footer {
                 let foot_h = (theme.type_scale.caption + 10.0).min(height * 0.28);
                 let foot = Rect::from_min_max(
                     Pos2::new(rect.left(), rect.bottom() - foot_h),
