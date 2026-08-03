@@ -57,6 +57,7 @@ mod hotkeys;
 mod icons;
 mod layout;
 mod theme;
+mod video;
 
 pub use app_icon::{
     icon_data_from_png, try_with_app_icon, try_with_app_icon_id, with_app_icon, with_app_icon_id,
@@ -89,6 +90,7 @@ pub use theme::{
     text_field_multiline, text_field_singleline, title, title_2, Mode, Palette, Spacing, Theme,
     TypeScale,
 };
+pub use video::{video_player, VideoPlayerAction, VideoPlayerOpts, VideoPlayerState};
 
 use egui::{Context, FontFamily, FontId, Style, TextStyle};
 
