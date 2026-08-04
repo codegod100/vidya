@@ -13,7 +13,7 @@
 //! | Card overflows column | [`card`] / [`compact_card`] |
 //! | Giant gaps when parent is tall | [`vstack`] (non-justified) |
 //! | Fixed tiles stretch across the window | [`pack`] (wrap, hug content) |
-//! | Actions clipped off the right | [`lead_trail`] |
+//! | Actions clipped off the right | [`lead_trail`] (content-hugging height) |
 //! | Side-by-side vs stack breakpoint | [`two_col`] / [`side_by_side`] |
 //! | Rate columns staircase ("waterfall") | [`metric_bps`] / [`metric_rate`] / [`metric_cell`] / [`grid_cols`] / [`data_table`] |
 //!
@@ -268,24 +268,34 @@ pub fn pack(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui)) -> InnerRespo
 }
 
 /// Leading content grows into remaining width; trailing actions stay visible.
+///
+/// Height hugs content. Do **not** use bare `with_layout(… Align::Center)` here:
+/// egui expands centered horizontal frames to the parent's full available
+/// height, so `min_rect` eats the panel and everything below (toolbars,
+/// tables, scroll areas) gets zero height — a blank detail pane.
 pub fn lead_trail(
     ui: &mut Ui,
     leading: impl FnOnce(&mut Ui),
     trailing: impl FnOnce(&mut Ui),
 ) -> InnerResponse<()> {
     let w = ui.available_width().max(1.0);
-    ui.scope(|ui| {
-        ui.set_max_width(w);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+    ui.allocate_ui_with_layout(
+        Vec2::new(w, 0.0),
+        Layout::right_to_left(Align::Center),
+        |ui| {
             trailing(ui);
-            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                let rest = ui.available_width().max(1.0);
-                ui.set_max_width(rest);
-                ui.set_min_width(rest.min(ui.available_width()));
-                leading(ui);
-            });
-        });
-    })
+            let rest = ui.available_width().max(1.0);
+            ui.allocate_ui_with_layout(
+                Vec2::new(rest, 0.0),
+                Layout::left_to_right(Align::Center),
+                |ui| {
+                    ui.set_max_width(rest);
+                    ui.set_min_width(rest);
+                    leading(ui);
+                },
+            );
+        },
+    )
 }
 
 /// Two columns when [`side_by_side`] says so; otherwise stack.
