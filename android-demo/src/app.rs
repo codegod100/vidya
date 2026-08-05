@@ -11,9 +11,11 @@ use eframe::egui::{
 };
 use vidya::{
     apply, body, button, card, checkbox, destructive_button, dim_label, emoji_icon, emoji_pack_len,
-    grid_cols, hflow, icon, primary_button, reserve_system_chrome, set_system_chrome,
-    text_field_multiline, title, title_2, two_col, ColSpec, Icon, Mode, SystemChrome, Theme,
+    grid_cols, hflow, icon, primary_button, reserve_system_chrome, text_field_multiline, title,
+    title_2, two_col, ColSpec, Icon, Mode, Theme,
 };
+#[cfg(target_os = "android")]
+use vidya::sync_system_chrome_from_android;
 
 /// Desktop / host entry.
 pub fn run_desktop() -> eframe::Result {
@@ -44,7 +46,7 @@ pub fn run_android(android_app: winit::platform::android::activity::AndroidApp) 
     eframe::run_native(
         "Vidya Showcase",
         options,
-        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli, android_app)))),
+        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli, Some(android_app))))),
     )
 }
 
@@ -144,7 +146,7 @@ struct DemoApp {
     frame_count: u32,
     screenshot_requested: bool,
     #[cfg(target_os = "android")]
-    android_app: winit::platform::android::activity::AndroidApp,
+    android_app: Option<winit::platform::android::activity::AndroidApp>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -209,7 +211,9 @@ impl DemoApp {
     fn new(
         cc: &eframe::CreationContext<'_>,
         cli: Cli,
-        #[cfg(target_os = "android")] android_app: winit::platform::android::activity::AndroidApp,
+        #[cfg(target_os = "android")] android_app: Option<
+            winit::platform::android::activity::AndroidApp,
+        >,
     ) -> Self {
         let theme = match cli.mode {
             Mode::Dark => Theme::dark(),
@@ -246,20 +250,6 @@ impl DemoApp {
     }
 }
 
-/// Push measured status / nav / IME insets from the Android content rect.
-///
-/// Unlike `Context::wants_keyboard_input()`, `content_rect` shrinks when the user
-/// hits the keyboard dismiss button even if the focused field still wants input.
-#[cfg(target_os = "android")]
-fn sync_system_chrome(ctx: &egui::Context, app: &winit::platform::android::activity::AndroidApp) {
-    let px_per_point = ctx.pixels_per_point();
-    let screen_h_px = (ctx.screen_rect().height() * px_per_point).round() as i32;
-    let rect = app.content_rect();
-    let top = rect.top as f32 / px_per_point;
-    let bottom = screen_h_px.saturating_sub(rect.bottom) as f32 / px_per_point;
-    set_system_chrome(ctx, SystemChrome { top, bottom });
-}
-
 impl eframe::App for DemoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Docs capture: wait for fonts/layout to settle, then grab framebuffer.
@@ -292,7 +282,9 @@ impl eframe::App for DemoApp {
         // System status / nav bars (edge-to-edge Android) — library owns this so
         // header and chips cannot sit under the clock or gesture bar.
         #[cfg(target_os = "android")]
-        sync_system_chrome(ctx, &self.android_app);
+        if let Some(app) = self.android_app.as_ref() {
+            sync_system_chrome_from_android(ctx, app);
+        }
         reserve_system_chrome(ctx, &th);
 
         // ── Headerbar ──────────────────────────────────────────────

@@ -35,7 +35,7 @@ Screenshots below are **Waydroid** (portrait Android) captures of the demo APK.
 
 **Emoji → color icons:** the full **Twemoji** 72×72 set (~3.8k glyphs) is embedded. Any reaction (flags, ZWJ sequences, skin tones) resolves via `emoji_icon` / `paint_emoji_in` / `reaction_chip`. Prefer these over raw Unicode on Android — egui’s default fonts only ship monochrome Noto Emoji.
 
-On **Android** (edge-to-edge NativeActivity), call `reserve_system_chrome(ctx, &theme)` once per frame **before** other panels, or use `top_header(ctx, &theme, |ui| { … })` for the app chrome. That reserves the system status bar and gesture/nav band so labels and chips cannot sit under the clock / indicators.
+On **Android** (edge-to-edge NativeActivity), call `reserve_system_chrome(ctx, &theme)` once per frame **before** other panels, or use `top_header(ctx, &theme, |ui| { … })` for the app chrome. Prefer `sync_system_chrome_from_android(ctx, &android_app)` each frame so insets track `content_rect` (including when the soft keyboard is open). The IME reserve passes pointer events through so swipe typing on the system keyboard is not blocked.
 
 ## Demo
 
@@ -186,6 +186,7 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `metric_cell` / `table_metric` / `table_text` | Low-level cells (prefer the row DSL) |
 | `data_table` | Index-callback table helper on top of the grid DSL |
 | `reserve_system_chrome` / `system_chrome` | Android status + nav safe areas |
+| `sync_system_chrome_from_android` | Measured insets from `AndroidApp::content_rect` (Android) |
 | `top_header` | Header panel with system chrome already reserved |
 | **App icon** | Embed a PNG as the native window icon |
 | `icon_data_from_png` | Decode PNG bytes → `egui::IconData` |
