@@ -63,8 +63,9 @@ impl SystemChrome {
 /// Inject measured system insets for this frame (egui points).
 ///
 /// Call once per frame **before** [`reserve_system_chrome`]. When set,
-/// [`system_chrome`] uses these values instead of the platform fallbacks
-/// (IME expansion still applies on top of `nav_bottom`).
+/// [`system_chrome`] uses these values instead of the platform fallbacks and
+/// does **not** add focus-based IME padding on top (measured insets already
+/// reflect keyboard visibility from `content_rect` / WindowInsets).
 pub fn set_system_chrome(ctx: &Context, chrome: SystemChrome) {
     ctx.data_mut(|d| d.insert_temp(Id::new(SYSTEM_CHROME_ID), chrome));
 }
@@ -74,13 +75,17 @@ pub fn set_system_chrome(ctx: &Context, chrome: SystemChrome) {
 ///
 /// Call once per frame on Android **before** [`reserve_system_chrome`]. When the
 /// soft keyboard is open, `content_rect` shrinks and the derived bottom inset
-/// includes the IME height so layout tracks the real keyboard band.
+/// includes the IME height so layout tracks the real keyboard band — even when
+/// the user dismisses the keyboard via the IME close button while a text field
+/// still holds focus.
 #[cfg(target_os = "android")]
 pub fn sync_system_chrome_from_android(
     ctx: &Context,
     app: &winit::platform::android::activity::AndroidApp,
 ) {
     const NAV_FALLBACK: f32 = 20.0;
+    /// Minimum extra inset beyond the nav band before treating the IME as visible.
+    const IME_VISIBLE_THRESHOLD: f32 = 48.0;
 
     let rect = app.content_rect();
     let ppp = ctx.pixels_per_point().max(0.01);
@@ -90,11 +95,16 @@ pub fn sync_system_chrome_from_android(
     let content_bottom_pt = rect.bottom as f32 / ppp;
     let total_bottom = (screen.height() - content_bottom_pt).max(0.0);
 
-    if ctx.wants_keyboard_input() {
-        let nav = ctx
-            .data(|d| d.get_temp::<f32>(Id::new(NAV_HINT_ID)))
-            .unwrap_or(NAV_FALLBACK)
-            .clamp(0.0, total_bottom);
+    let nav_hint = ctx
+        .data(|d| d.get_temp::<f32>(Id::new(NAV_HINT_ID)))
+        .unwrap_or(NAV_FALLBACK);
+
+    // Derive keyboard visibility from content_rect, not wants_keyboard_input():
+    // dismissing the IME hides the keyboard but often leaves text focus.
+    let keyboard_visible = total_bottom > nav_hint + IME_VISIBLE_THRESHOLD;
+
+    if keyboard_visible {
+        let nav = nav_hint.clamp(0.0, total_bottom);
         set_system_chrome(
             ctx,
             SystemChrome {
@@ -130,26 +140,29 @@ pub fn system_chrome(ctx: &Context) -> SystemChrome {
             Some(c) => c.top.max(TOP_FALLBACK),
             None => TOP_FALLBACK,
         };
-        let measured_nav = measured.map(|c| c.nav_bottom.max(0.0));
-        let mut nav_bottom = measured_nav.unwrap_or(NAV_FALLBACK);
+
+        if let Some(m) = measured {
+            let chrome = SystemChrome {
+                top,
+                nav_bottom: m.nav_bottom.max(0.0),
+                ime_bottom: m.ime_bottom.max(0.0),
+            };
+            // content_rect / WindowInsets may still be animating with the IME.
+            if chrome.ime_bottom > NAV_FALLBACK {
+                ctx.request_repaint();
+            }
+            return chrome;
+        }
+
+        let mut nav_bottom = NAV_FALLBACK;
         let mut ime_bottom = 0.0;
 
         if ctx.wants_keyboard_input() {
             let h = ctx.screen_rect().height();
             let ime_fallback = (h * 0.40).clamp(240.0, h * 0.52);
-            if let Some(m) = measured.filter(|c| c.ime_bottom > 0.0) {
-                nav_bottom = m.nav_bottom;
-                ime_bottom = m.ime_bottom.max(ime_fallback - nav_bottom.max(0.0));
-            } else {
-                let total_bottom = measured
-                    .map(|c| c.bottom().max(ime_fallback))
-                    .unwrap_or(ime_fallback);
-                nav_bottom = measured_nav.unwrap_or(NAV_FALLBACK).min(total_bottom);
-                ime_bottom = (total_bottom - nav_bottom).max(0.0);
-            }
+            nav_bottom = NAV_FALLBACK.min(ime_fallback);
+            ime_bottom = (ime_fallback - nav_bottom).max(0.0);
             ctx.request_repaint();
-        } else {
-            nav_bottom = measured_nav.unwrap_or(NAV_FALLBACK);
         }
 
         SystemChrome {

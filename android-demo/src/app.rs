@@ -46,7 +46,7 @@ pub fn run_android(android_app: winit::platform::android::activity::AndroidApp) 
     eframe::run_native(
         "Vidya Showcase",
         options,
-        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli, Some(android_app)))),
+        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli, Some(android_app))))),
     )
 }
 
