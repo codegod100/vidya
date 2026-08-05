@@ -66,6 +66,8 @@ pub use app_icon::{
 pub use chrome::{
     dialog, reserve_system_chrome, set_system_chrome, system_chrome, top_header, SystemChrome,
 };
+#[cfg(target_os = "android")]
+pub use chrome::sync_system_chrome_from_android;
 pub use fonts::install_symbol_font;
 pub use hotkeys::{
     command_glyph, command_pressed, command_shift_shortcut_label, command_shortcut_label,
