@@ -14,6 +14,8 @@ use vidya::{
     grid_cols, hflow, icon, primary_button, reserve_system_chrome, text_field_multiline, title,
     title_2, two_col, ColSpec, Icon, Mode, Theme,
 };
+#[cfg(target_os = "android")]
+use vidya::sync_system_chrome_from_android;
 
 /// Desktop / host entry.
 pub fn run_desktop() -> eframe::Result {
@@ -40,11 +42,11 @@ pub fn run_android(android_app: winit::platform::android::activity::AndroidApp) 
         viewport: egui::ViewportBuilder::default().with_title("Vidya"),
         ..Default::default()
     };
-    options.android_app = Some(android_app);
+    options.android_app = Some(android_app.clone());
     eframe::run_native(
         "Vidya Showcase",
         options,
-        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli)))),
+        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli, Some(android_app)))),
     )
 }
 
@@ -143,6 +145,8 @@ struct DemoApp {
     screenshot: Option<PathBuf>,
     frame_count: u32,
     screenshot_requested: bool,
+    #[cfg(target_os = "android")]
+    android_app: Option<winit::platform::android::activity::AndroidApp>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -204,7 +208,13 @@ impl Nav {
 }
 
 impl DemoApp {
-    fn new(cc: &eframe::CreationContext<'_>, cli: Cli) -> Self {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        cli: Cli,
+        #[cfg(target_os = "android")] android_app: Option<
+            winit::platform::android::activity::AndroidApp,
+        >,
+    ) -> Self {
         let theme = match cli.mode {
             Mode::Dark => Theme::dark(),
             Mode::Light => Theme::light(),
@@ -222,6 +232,8 @@ impl DemoApp {
             screenshot: cli.screenshot,
             frame_count: 0,
             screenshot_requested: false,
+            #[cfg(target_os = "android")]
+            android_app,
         }
     }
 
@@ -269,6 +281,10 @@ impl eframe::App for DemoApp {
 
         // System status / nav bars (edge-to-edge Android) — library owns this so
         // header and chips cannot sit under the clock or gesture bar.
+        #[cfg(target_os = "android")]
+        if let Some(app) = self.android_app.as_ref() {
+            sync_system_chrome_from_android(ctx, app);
+        }
         reserve_system_chrome(ctx, &th);
 
         // ── Headerbar ──────────────────────────────────────────────
