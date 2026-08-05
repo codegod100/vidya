@@ -42,8 +42,9 @@ impl SystemChrome {
 /// Inject measured system insets for this frame (egui points).
 ///
 /// Call once per frame **before** [`reserve_system_chrome`]. When set,
-/// [`system_chrome`] uses these values instead of the platform fallbacks
-/// (IME expansion still applies on top of `bottom`).
+/// [`system_chrome`] uses these values instead of the platform fallbacks and
+/// does **not** add focus-based IME padding on top (measured insets already
+/// reflect keyboard visibility from `content_rect` / WindowInsets).
 pub fn set_system_chrome(ctx: &Context, chrome: SystemChrome) {
     ctx.data_mut(|d| d.insert_temp(Id::new(SYSTEM_CHROME_ID), chrome));
 }
@@ -76,7 +77,11 @@ pub fn system_chrome(ctx: &Context) -> SystemChrome {
             Some(c) => c.bottom.max(0.0),
             None => BOTTOM_FALLBACK,
         };
-        if ctx.wants_keyboard_input() {
+        // Only apply the focus-based IME heuristic when the app did not inject
+        // measured insets. Injected values (from `AndroidApp::content_rect` or
+        // WindowInsets) already shrink when the user dismisses the keyboard via
+        // the IME close button — even if the focused `TextEdit` still wants input.
+        if measured.is_none() && ctx.wants_keyboard_input() {
             // Soft keyboards are typically ~35–45% of portrait height. Pad that
             // much under all UI so TopBottomPanel compose / tabs clear the IME.
             // (Seen on Pixel: ime inset ≈ 988px on a 2400px-tall display.)
@@ -85,6 +90,12 @@ pub fn system_chrome(ctx: &Context) -> SystemChrome {
             bottom = bottom.max(ime);
             // Keep animating a few frames while the keyboard slides in/out.
             ctx.request_repaint();
+        } else if measured.is_some() {
+            // content_rect / WindowInsets may still be animating with the IME.
+            let h = ctx.screen_rect().height();
+            if bottom > BOTTOM_FALLBACK + h * 0.08 {
+                ctx.request_repaint();
+            }
         }
         SystemChrome { top, bottom }
     }

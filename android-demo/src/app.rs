@@ -11,8 +11,8 @@ use eframe::egui::{
 };
 use vidya::{
     apply, body, button, card, checkbox, destructive_button, dim_label, emoji_icon, emoji_pack_len,
-    grid_cols, hflow, icon, primary_button, reserve_system_chrome, text_field_multiline, title,
-    title_2, two_col, ColSpec, Icon, Mode, Theme,
+    grid_cols, hflow, icon, primary_button, reserve_system_chrome, set_system_chrome,
+    text_field_multiline, title, title_2, two_col, ColSpec, Icon, Mode, SystemChrome, Theme,
 };
 
 /// Desktop / host entry.
@@ -40,11 +40,11 @@ pub fn run_android(android_app: winit::platform::android::activity::AndroidApp) 
         viewport: egui::ViewportBuilder::default().with_title("Vidya"),
         ..Default::default()
     };
-    options.android_app = Some(android_app);
+    options.android_app = Some(android_app.clone());
     eframe::run_native(
         "Vidya Showcase",
         options,
-        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli)))),
+        Box::new(move |cc| Ok(Box::new(DemoApp::new(cc, cli, android_app)))),
     )
 }
 
@@ -143,6 +143,8 @@ struct DemoApp {
     screenshot: Option<PathBuf>,
     frame_count: u32,
     screenshot_requested: bool,
+    #[cfg(target_os = "android")]
+    android_app: winit::platform::android::activity::AndroidApp,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -204,7 +206,11 @@ impl Nav {
 }
 
 impl DemoApp {
-    fn new(cc: &eframe::CreationContext<'_>, cli: Cli) -> Self {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        cli: Cli,
+        #[cfg(target_os = "android")] android_app: winit::platform::android::activity::AndroidApp,
+    ) -> Self {
         let theme = match cli.mode {
             Mode::Dark => Theme::dark(),
             Mode::Light => Theme::light(),
@@ -222,6 +228,8 @@ impl DemoApp {
             screenshot: cli.screenshot,
             frame_count: 0,
             screenshot_requested: false,
+            #[cfg(target_os = "android")]
+            android_app,
         }
     }
 
@@ -236,6 +244,20 @@ impl DemoApp {
         self.mode = mode;
         apply(ctx, &self.theme());
     }
+}
+
+/// Push measured status / nav / IME insets from the Android content rect.
+///
+/// Unlike `Context::wants_keyboard_input()`, `content_rect` shrinks when the user
+/// hits the keyboard dismiss button even if the focused field still wants input.
+#[cfg(target_os = "android")]
+fn sync_system_chrome(ctx: &egui::Context, app: &winit::platform::android::activity::AndroidApp) {
+    let px_per_point = ctx.pixels_per_point();
+    let screen_h_px = (ctx.screen_rect().height() * px_per_point).round() as i32;
+    let rect = app.content_rect();
+    let top = rect.top as f32 / px_per_point;
+    let bottom = screen_h_px.saturating_sub(rect.bottom) as f32 / px_per_point;
+    set_system_chrome(ctx, SystemChrome { top, bottom });
 }
 
 impl eframe::App for DemoApp {
@@ -269,6 +291,8 @@ impl eframe::App for DemoApp {
 
         // System status / nav bars (edge-to-edge Android) — library owns this so
         // header and chips cannot sit under the clock or gesture bar.
+        #[cfg(target_os = "android")]
+        sync_system_chrome(ctx, &self.android_app);
         reserve_system_chrome(ctx, &th);
 
         // ── Headerbar ──────────────────────────────────────────────
