@@ -56,7 +56,8 @@ if ! command -v pyftsubset >/dev/null 2>&1; then
 fi
 
 # Keep in sync with assets/NOTICE.
-# Ranges cover LLM math-in-prose; singletons cover UI punctuation.
+# Ranges: Greek, general punctuation (incl. thin/ZWSP), letterlike, arrows,
+# operators, brackets, math alphanumerics; singletons for UI shapes/checks.
 UNICODES=$(
   cat <<'EOF' | tr '\n' ',' | sed 's/,$//'
 U+00B0
@@ -68,21 +69,13 @@ U+00B9
 U+00D7
 U+00F7
 U+0370-03FF
-U+2013
-U+2014
-U+2018
-U+2019
-U+201C
-U+201D
-U+2022
-U+2023
-U+2026
-U+2039
-U+203A
+U+2000-206F
 U+2070-209F
 U+2100-214F
 U+2190-21FF
 U+2200-22FF
+U+27C0-27EF
+U+2980-299F
 U+25A0
 U+25A1
 U+25B2
@@ -101,6 +94,7 @@ U+2713
 U+2714
 U+2715
 U+2717
+U+1D400-1D7FF
 EOF
 )
 

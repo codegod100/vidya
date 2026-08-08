@@ -2,8 +2,8 @@
 //!
 //! egui’s default Ubuntu Light lacks many symbols used in HIG-style copy
 //! (`→`, `●`, `○`, `▾`/`▴`, en/em dashes, curly quotes, …) and common LLM
-//! math outside `$…$` (`ℝ`, `ⁿ`, `∑`, Greek, …). On Android those codepoints
-//! render as hollow boxes (“tofu”).
+//! math outside `$…$` (`ℝ`, `ⁿ`, `∑`, Greek, thin spaces, …). On Android those
+//! codepoints render as hollow boxes (“tofu”).
 //!
 //! [`install_symbol_font`] registers a DejaVu Sans subset as a **fallback**
 //! so primary text stays Ubuntu, but missing symbols still draw.
