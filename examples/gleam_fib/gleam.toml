@@ -1,0 +1,4 @@
+name = "gleam_fib"
+version = "0.1.0"
+description = "Tiny Gleam → Wasm guest (fib) hosted by vidya-demo-host"
+target = "wasm"

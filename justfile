@@ -8,9 +8,13 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
     @just --list
 
-# Desktop window
+# Desktop window (also builds + loads examples/gleam_fib via wasmtime)
 host *args:
     cargo run --manifest-path host/Cargo.toml {{args}}
+
+# Build Gleam → Wasm guest and call fib(10) (no GUI)
+fib:
+    cargo run --manifest-path host/Cargo.toml -- --fib-only
 
 lib:
     cargo build --lib

@@ -2,9 +2,10 @@
 name = "vidya-demo-host"
 version = "0.1.0"
 edition = "2021"
-description = "Vidya demo — desktop window"
+description = "Vidya demo — desktop window (+ Gleam Wasm guest)"
 license = "MIT"
 publish = false
+build = "build.rs"
 
 [workspace]
 
@@ -20,4 +21,9 @@ eframe = { version = "0.31", default-features = false, features = [
     "glow",
     "wayland",
     "x11",
+] }
+# Load Gleam-compiled fib guest (examples/gleam_fib).
+wasmtime = { version = "29", default-features = false, features = [
+    "cranelift",
+    "runtime",
 ] }

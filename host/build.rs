@@ -1,0 +1,110 @@
+//! Compile `examples/gleam_fib` with a wasm-capable Gleam, then copy the
+//! module next to the host crate so runtime can `include_bytes!` it.
+
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn main() {
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let guest_dir = manifest_dir.join("../examples/gleam_fib");
+    let guest_src = guest_dir.join("src/gleam_fib.gleam");
+
+    println!("cargo:rerun-if-changed={}", guest_src.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        guest_dir.join("gleam.toml").display()
+    );
+    println!("cargo:rerun-if-env-changed=GLEAM");
+
+    let gleam = find_gleam(&manifest_dir);
+    eprintln!(
+        "vidya-demo-host build.rs: gleam → {}",
+        gleam.display()
+    );
+
+    let status = Command::new(&gleam)
+        .current_dir(&guest_dir)
+        .arg("build")
+        .status()
+        .unwrap_or_else(|err| {
+            panic!(
+                "failed to spawn gleam at {}: {err}\n\
+                 Set GLEAM to a wasm-capable gleam binary \
+                 (https://tangled.org/nandi.uk/gleam , branch wasm).",
+                gleam.display()
+            )
+        });
+
+    if !status.success() {
+        panic!(
+            "`gleam build` failed in {} (status {status}).\n\
+             Need Gleam with target = \"wasm\" support:\n\
+               https://tangled.org/nandi.uk/gleam  (branch wasm)\n\
+               cargo build -p gleam && export GLEAM=$PWD/target/debug/gleam\n\
+             Current candidate: {}",
+            guest_dir.display(),
+            gleam.display()
+        );
+    }
+
+    let wasm_src = guest_dir.join("build/dev/wasm/gleam_fib/gleam_fib.wasm");
+    if !wasm_src.is_file() {
+        panic!(
+            "gleam build succeeded but {} was not created",
+            wasm_src.display()
+        );
+    }
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let wasm_dst = out_dir.join("gleam_fib.wasm");
+    fs::copy(&wasm_src, &wasm_dst).unwrap_or_else(|err| {
+        panic!(
+            "copy {} → {}: {err}",
+            wasm_src.display(),
+            wasm_dst.display()
+        );
+    });
+
+    // Also keep a stable path under host/target for inspection / wasmtime CLI.
+    let inspect = manifest_dir.join("target/gleam_fib.wasm");
+    if let Some(parent) = inspect.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::copy(&wasm_src, &inspect);
+
+    eprintln!(
+        "vidya-demo-host build.rs: guest ready ({} bytes) → {}",
+        fs::metadata(&wasm_dst).map(|m| m.len()).unwrap_or(0),
+        wasm_dst.display()
+    );
+}
+
+fn find_gleam(manifest_dir: &Path) -> PathBuf {
+    if let Ok(path) = env::var("GLEAM") {
+        let p = PathBuf::from(path);
+        if p.is_file() {
+            return p;
+        }
+        panic!("GLEAM={p:?} is not a file");
+    }
+
+    let mut candidates = vec![
+        // Sibling of a normal `~/code/vidya` checkout.
+        manifest_dir.join("../../gleam/target/debug/gleam"),
+        manifest_dir.join("../../gleam/target/release/gleam"),
+    ];
+    if let Some(home) = env::var_os("HOME") {
+        let home = PathBuf::from(home);
+        candidates.push(home.join("code/gleam/target/debug/gleam"));
+        candidates.push(home.join("code/gleam/target/release/gleam"));
+    }
+    for candidate in candidates {
+        if candidate.is_file() {
+            return candidate.canonicalize().unwrap_or(candidate);
+        }
+    }
+
+    PathBuf::from("gleam")
+}

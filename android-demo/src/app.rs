@@ -143,6 +143,8 @@ struct DemoApp {
     screenshot: Option<PathBuf>,
     frame_count: u32,
     screenshot_requested: bool,
+    /// Set by desktop host after wasmtime runs the Gleam fib guest.
+    gleam_fib: Option<i64>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -210,6 +212,9 @@ impl DemoApp {
             Mode::Light => Theme::light(),
         };
         apply(&cc.egui_ctx, &theme);
+        let gleam_fib = std::env::var("VIDYA_GLEAM_FIB")
+            .ok()
+            .and_then(|s| s.parse().ok());
         Self {
             mode: cli.mode,
             name: String::from("Ada"),
@@ -222,6 +227,7 @@ impl DemoApp {
             screenshot: cli.screenshot,
             frame_count: 0,
             screenshot_requested: false,
+            gleam_fib,
         }
     }
 
@@ -544,6 +550,22 @@ impl DemoApp {
                 }
             });
         });
+
+        if let Some(n) = self.gleam_fib {
+            ui.add_space(th.spacing.md);
+            card(ui, th, |ui| {
+                title_2(ui, th, "Gleam Wasm guest");
+                ui.add_space(th.spacing.sm);
+                body(
+                    ui,
+                    th,
+                    &format!(
+                        "Desktop host build.rs compiled examples/gleam_fib with the wasm-branch \
+                         Gleam compiler; wasmtime called gleam_fib__fib(10) → {n}."
+                    ),
+                );
+            });
+        }
 
         ui.add_space(th.spacing.md);
 

@@ -161,7 +161,19 @@
               export CC_x86_64_linux_android="''${CC_x86_64_linux_android:-x86_64-linux-android28-clang}"
               export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$CC_x86_64_linux_android"
               export AR_x86_64_linux_android="''${AR_x86_64_linux_android:-llvm-ar}"
-              echo "vidya — nix run | just host | just waydroid | just shots"
+              # Wasm-capable Gleam for host/build.rs (examples/gleam_fib).
+              if [ -z "''${GLEAM:-}" ]; then
+                for candidate in \
+                  "$HOME/code/gleam/target/debug/gleam" \
+                  "$HOME/code/gleam/target/release/gleam" \
+                  "$PWD/../gleam/target/debug/gleam"; do
+                  if [ -x "$candidate" ]; then
+                    export GLEAM="$candidate"
+                    break
+                  fi
+                done
+              fi
+              echo "vidya — nix run | just host | just fib | just waydroid | just shots''${GLEAM:+ (GLEAM=$GLEAM)}"
             '';
           };
         }
