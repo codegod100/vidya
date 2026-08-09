@@ -1,0 +1,4 @@
+name = "gleam_gui"
+version = "0.1.0"
+description = "Tiny Gleam → Wasm calculator hosted by vidya-demo-host"
+target = "wasm"

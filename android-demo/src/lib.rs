@@ -1,8 +1,14 @@
 //! Shared library: desktop binary + Android NativeActivity (`android_main`).
 
 mod app;
+mod gleam_app;
+mod gleam_bridge;
 
 pub use app::run_desktop;
+pub use gleam_app::run_gleam_app;
+pub use gleam_bridge::{
+    install_gleam_gui, install_gleam_shell, GleamGuiHooks, GleamShellHooks,
+};
 
 #[cfg(target_os = "android")]
 pub use app::run_android;

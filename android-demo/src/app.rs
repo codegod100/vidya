@@ -145,6 +145,12 @@ struct DemoApp {
     screenshot_requested: bool,
     /// Set by desktop host after wasmtime runs the Gleam fib guest.
     gleam_fib: Option<i64>,
+    /// Packed calculator model owned by Gleam updates (desktop host only).
+    gleam_model: Option<i64>,
+    gleam_err: Option<String>,
+    /// TEA shell model — Gleam owns view/update; host only materializes opcodes.
+    gleam_shell_model: Option<i64>,
+    gleam_shell_err: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -215,6 +221,20 @@ impl DemoApp {
         let gleam_fib = std::env::var("VIDYA_GLEAM_FIB")
             .ok()
             .and_then(|s| s.parse().ok());
+        let (gleam_model, gleam_err) = match crate::gleam_bridge::gui_hooks() {
+            Some(h) => match (h.new)() {
+                Ok(n) => (Some(n), None),
+                Err(e) => (None, Some(e)),
+            },
+            None => (None, None),
+        };
+        let (gleam_shell_model, gleam_shell_err) = match crate::gleam_bridge::shell_hooks() {
+            Some(h) => match (h.init)() {
+                Ok(n) => (Some(n), None),
+                Err(e) => (None, Some(e)),
+            },
+            None => (None, None),
+        };
         Self {
             mode: cli.mode,
             name: String::from("Ada"),
@@ -228,6 +248,10 @@ impl DemoApp {
             frame_count: 0,
             screenshot_requested: false,
             gleam_fib,
+            gleam_model,
+            gleam_err,
+            gleam_shell_model,
+            gleam_shell_err,
         }
     }
 
@@ -241,6 +265,126 @@ impl DemoApp {
     fn set_mode(&mut self, ctx: &egui::Context, mode: Mode) {
         self.mode = mode;
         apply(ctx, &self.theme());
+    }
+
+    fn gleam_apply(
+        &mut self,
+        f: impl FnOnce(&crate::gleam_bridge::GleamGuiHooks, i64) -> Result<i64, String>,
+    ) {
+        let Some(hooks) = crate::gleam_bridge::gui_hooks() else {
+            return;
+        };
+        let cur = self.gleam_model.unwrap_or(0);
+        match f(hooks, cur) {
+            Ok(n) => {
+                self.gleam_model = Some(n);
+                self.gleam_err = None;
+            }
+            Err(e) => self.gleam_err = Some(e),
+        }
+    }
+
+    fn gleam_display(&self) -> Option<(i64, Option<&'static str>, bool)> {
+        let hooks = crate::gleam_bridge::gui_hooks()?;
+        let model = self.gleam_model?;
+        let value = (hooks.display)(model).ok()?;
+        let pending = match (hooks.pending_op)(model).ok()? {
+            1 => Some("+"),
+            2 => Some("−"),
+            3 => Some("×"),
+            4 => Some("÷"),
+            _ => None,
+        };
+        let errored = (hooks.errored)(model).ok()? != 0;
+        Some((value, pending, errored))
+    }
+
+    fn gleam_calculator(&mut self, ui: &mut egui::Ui, th: &Theme) {
+        let Some((value, pending, errored)) = self.gleam_display() else {
+            return;
+        };
+
+        let headline = if errored {
+            "Error".to_string()
+        } else if let Some(op) = pending {
+            format!("{value}  {op}")
+        } else {
+            format!("{value}")
+        };
+        title_2(ui, th, &headline);
+        ui.add_space(th.spacing.sm);
+        body(ui, th, "Gleam-owned int calculator (Wasm guest).");
+        ui.add_space(th.spacing.md);
+
+        self.gleam_keypad(ui, th);
+    }
+
+    fn gleam_keypad(&mut self, ui: &mut egui::Ui, th: &Theme) {
+        for row in [
+            ["C", "CE", "÷", "×"],
+            ["7", "8", "9", "−"],
+            ["4", "5", "6", "+"],
+            ["1", "2", "3", "="],
+        ] {
+            hflow(ui, th, |ui| {
+                for label in row {
+                    self.gleam_key(ui, th, label);
+                }
+            });
+            ui.add_space(th.spacing.xs);
+        }
+        hflow(ui, th, |ui| {
+            if button(ui, th, "0").clicked() {
+                self.gleam_apply(|h, m| (h.digit)(m, 0));
+            }
+            if primary_button(ui, th, "=").clicked() {
+                self.gleam_apply(|h, m| (h.equals)(m));
+            }
+        });
+    }
+
+    fn gleam_key(&mut self, ui: &mut egui::Ui, th: &Theme, label: &str) {
+        if button(ui, th, label).clicked() {
+            match label {
+                "C" => self.gleam_apply(|h, m| (h.clear)(m)),
+                "CE" => self.gleam_apply(|h, m| (h.clear_entry)(m)),
+                "+" => self.gleam_apply(|h, m| (h.op)(m, 1)),
+                "−" => self.gleam_apply(|h, m| (h.op)(m, 2)),
+                "×" => self.gleam_apply(|h, m| (h.op)(m, 3)),
+                "÷" => self.gleam_apply(|h, m| (h.op)(m, 4)),
+                "=" => self.gleam_apply(|h, m| (h.equals)(m)),
+                d => {
+                    if let Ok(n) = d.parse::<i64>() {
+                        self.gleam_apply(|h, m| (h.digit)(m, n));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Materialize Gleam's view opcodes → Vidya widgets; forward clicks as msgs.
+    fn gleam_shell(&mut self, ui: &mut egui::Ui, th: &Theme) {
+        let Some(hooks) = crate::gleam_bridge::shell_hooks() else {
+            return;
+        };
+        let Some(model) = self.gleam_shell_model else {
+            return;
+        };
+
+        let painted = crate::gleam_bridge::paint_shell_view(ui, th, hooks, model);
+        if let Some(err) = painted.error {
+            self.gleam_shell_err = Some(err);
+            return;
+        }
+        if let Some(msg) = painted.pending_msg {
+            match (hooks.update)(model, msg) {
+                Ok(n) => {
+                    self.gleam_shell_model = Some(n);
+                    self.gleam_shell_err = None;
+                }
+                Err(e) => self.gleam_shell_err = Some(e),
+            }
+        }
     }
 }
 
@@ -551,19 +695,63 @@ impl DemoApp {
             });
         });
 
-        if let Some(n) = self.gleam_fib {
+        if self.gleam_fib.is_some() || self.gleam_model.is_some() || self.gleam_err.is_some() {
             ui.add_space(th.spacing.md);
             card(ui, th, |ui| {
-                title_2(ui, th, "Gleam Wasm guest");
+                title_2(ui, th, "Gleam Wasm guests");
+                ui.add_space(th.spacing.sm);
+                if let Some(n) = self.gleam_fib {
+                    body(
+                        ui,
+                        th,
+                        &format!(
+                            "fib guest: wasmtime called gleam_fib__fib(10) → {n}."
+                        ),
+                    );
+                    ui.add_space(th.spacing.sm);
+                }
+                if self.gleam_model.is_some() || self.gleam_err.is_some() {
+                    body(
+                        ui,
+                        th,
+                        "Calculator guest: Gleam owns the packed Int model \
+                         (entry, accumulator, pending op). This host only \
+                         renders the keypad and dispatches into a long-lived \
+                         Wasm instance.",
+                    );
+                    ui.add_space(th.spacing.md);
+
+                    if self.gleam_model.is_some() {
+                        self.gleam_calculator(ui, th);
+                    }
+
+                    if let Some(err) = &self.gleam_err {
+                        ui.add_space(th.spacing.sm);
+                        dim_label(ui, th, err);
+                    }
+                }
+            });
+        }
+
+        if self.gleam_shell_model.is_some() || self.gleam_shell_err.is_some() {
+            ui.add_space(th.spacing.md);
+            card(ui, th, |ui| {
+                title_2(ui, th, "Gleam shell (embedded)");
                 ui.add_space(th.spacing.sm);
                 body(
                     ui,
                     th,
-                    &format!(
-                        "Desktop host build.rs compiled examples/gleam_fib with the wasm-branch \
-                         Gleam compiler; wasmtime called gleam_fib__fib(10) → {n}."
-                    ),
+                    "Preview of the TEA guest inside Overview. For the whole \
+                     window owned by Gleam, run `just gleam-app`.",
                 );
+                ui.add_space(th.spacing.md);
+                if self.gleam_shell_model.is_some() {
+                    self.gleam_shell(ui, th);
+                }
+                if let Some(err) = &self.gleam_shell_err {
+                    ui.add_space(th.spacing.sm);
+                    dim_label(ui, th, err);
+                }
             });
         }
 

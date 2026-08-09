@@ -2,6 +2,8 @@
 /android-demo/target
 /host/target
 /examples/gleam_fib/build
+/examples/gleam_gui/build
+/examples/gleam_shell/build
 /result
 /result-*
 /demo

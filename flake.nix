@@ -46,8 +46,32 @@
             name = "vidya-demo";
             text = ''
               export LD_LIBRARY_PATH="${libPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-              # Same toolchain path as devShell / just host
+              # Same cargo discovery as devShell / just host
               export PATH="''${HOME}/.cargo/bin:$PATH"
+              if ! command -v cargo >/dev/null 2>&1; then
+                _vidya_tc=""
+                if [ -f "''${HOME}/.rustup/settings.toml" ]; then
+                  _vidya_def=$(sed -n 's/^default_toolchain = "\(.*\)"/\1/p' "''${HOME}/.rustup/settings.toml" | head -1)
+                  if [ -n "''${_vidya_def}" ] && [ -x "''${HOME}/.rustup/toolchains/''${_vidya_def}/bin/cargo" ]; then
+                    _vidya_tc="''${HOME}/.rustup/toolchains/''${_vidya_def}/bin"
+                  fi
+                fi
+                if [ -z "''${_vidya_tc}" ]; then
+                  for _vidya_c in \
+                    "''${HOME}/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin" \
+                    "''${HOME}/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/bin" \
+                    "''${HOME}/.rustup/toolchains/"*/bin; do
+                    if [ -x "''${_vidya_c}/cargo" ]; then
+                      _vidya_tc="''${_vidya_c}"
+                      break
+                    fi
+                  done
+                fi
+                if [ -n "''${_vidya_tc}" ]; then
+                  export PATH="''${_vidya_tc}:$PATH"
+                fi
+                unset _vidya_tc _vidya_def _vidya_c
+              fi
 
               if ! command -v cargo >/dev/null 2>&1; then
                 echo "vidya-demo: cargo not found — install rustup or put cargo on PATH" >&2
@@ -153,7 +177,46 @@
             buildInputs = libs;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libs;
             shellHook = ''
+              # Prefer ~/.cargo/bin when it has cargo (rustup proxies); else active/default
+              # rustup toolchain bin. Always keep ~/.cargo/bin for cargo-* helpers.
               export PATH="$HOME/.cargo/bin:$PATH"
+              if ! command -v cargo >/dev/null 2>&1; then
+                _vidya_tc=""
+                if [ -n "''${RUSTUP_TOOLCHAIN:-}" ] && [ -x "$HOME/.rustup/toolchains/$RUSTUP_TOOLCHAIN/bin/cargo" ]; then
+                  _vidya_tc="$HOME/.rustup/toolchains/$RUSTUP_TOOLCHAIN/bin"
+                elif command -v rustup >/dev/null 2>&1; then
+                  _vidya_which=$(rustup which cargo 2>/dev/null || true)
+                  if [ -n "''${_vidya_which}" ] && [ -x "''${_vidya_which}" ]; then
+                    _vidya_tc=$(dirname "''${_vidya_which}")
+                  fi
+                fi
+                if [ -z "''${_vidya_tc}" ] && [ -f "$HOME/.rustup/settings.toml" ]; then
+                  _vidya_def=$(sed -n 's/^default_toolchain = "\(.*\)"/\1/p' "$HOME/.rustup/settings.toml" | head -1)
+                  if [ -n "''${_vidya_def}" ] && [ -x "$HOME/.rustup/toolchains/''${_vidya_def}/bin/cargo" ]; then
+                    _vidya_tc="$HOME/.rustup/toolchains/''${_vidya_def}/bin"
+                  fi
+                fi
+                if [ -z "''${_vidya_tc}" ]; then
+                  for _vidya_c in \
+                    "$HOME/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin" \
+                    "$HOME/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/bin" \
+                    "$HOME/.rustup/toolchains/default/bin" \
+                    "$HOME/.rustup/toolchains/"*/bin; do
+                    if [ -x "''${_vidya_c}/cargo" ]; then
+                      _vidya_tc="''${_vidya_c}"
+                      break
+                    fi
+                  done
+                fi
+                if [ -n "''${_vidya_tc}" ]; then
+                  export PATH="''${_vidya_tc}:$PATH"
+                fi
+                unset _vidya_tc _vidya_def _vidya_which _vidya_c
+              fi
+              # rustup's gcc-ld can point at a GC'd nix store path; default to system cc+bfd.
+              if [ -z "''${RUSTFLAGS:-}" ]; then
+                export RUSTFLAGS="-C linker=cc -C link-arg=-fuse-ld=bfd"
+              fi
               export ANDROID_NDK_HOME="''${ANDROID_NDK_HOME:-$HOME/.local/share/android-ndk-r29}"
               export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
               export ANDROID_HOME="''${ANDROID_HOME:-$HOME/.local/share/android-sdk}"
@@ -173,7 +236,7 @@
                   fi
                 done
               fi
-              echo "vidya — nix run | just host | just fib | just waydroid | just shots''${GLEAM:+ (GLEAM=$GLEAM)}"
+              echo "vidya — nix run | just gleam-app | just host | just fib | just gleam-gui | just gleam-shell | just waydroid | just shots''${GLEAM:+ (GLEAM=$GLEAM)}"
             '';
           };
         }

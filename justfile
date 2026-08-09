@@ -1,20 +1,38 @@
 # Vidya
-#   nix develop
-#   just waydroid
-#   just host
+#   nix develop   # puts rustup/cargo on PATH (+ optional RUSTFLAGS)
+#   just gleam-app  # whole-window Gleam mini-app (thin Vidya shell)
+#   just host       # aesthetic showcase
+#   just fib / just gleam-gui / just gleam-shell / just waydroid
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 default:
     @just --list
 
-# Desktop window (also builds + loads examples/gleam_fib via wasmtime)
+# Whole-window Gleam app (Gleam owns UI tree; Vidya themes + paints opcodes)
+gleam-app *args:
+    cargo run --manifest-path host/Cargo.toml -- --gleam-app {{args}}
+
+# Aesthetic showcase desktop window (also builds + loads Gleam Wasm guests)
+# Requires cargo on PATH — enter via `nix develop` if rustup proxies are missing.
 host *args:
     cargo run --manifest-path host/Cargo.toml {{args}}
 
-# Build Gleam → Wasm guest and call fib(10) (no GUI)
+# Alias: same as `just host`
+showcase *args:
+    cargo run --manifest-path host/Cargo.toml -- --showcase {{args}}
+
+# Build Gleam → Wasm fib guest and call fib(10) (no GUI)
 fib:
     cargo run --manifest-path host/Cargo.toml -- --fib-only
+
+# Build Gleam → Wasm calculator guest and smoke multi-step turns (no GUI)
+gleam-gui:
+    cargo run --manifest-path host/Cargo.toml -- --gui-only
+
+# Build Gleam → Wasm TEA shell guest and smoke Home/About + Inc/Dec/Reset (no GUI)
+gleam-shell:
+    cargo run --manifest-path host/Cargo.toml -- --shell-only
 
 lib:
     cargo build --lib

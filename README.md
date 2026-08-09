@@ -52,8 +52,12 @@ nix run git+https://tangled.org/nandi.uk/vidya
 nix develop            # rust (+ android target) · just · adb · GLEAM if present
 
 just fib               # Gleam → Wasm guest + wasmtime fib(10) (no GUI)
+just gleam-gui         # Gleam calculator guest smoke (multi-step, no GUI)
+just gleam-shell       # Gleam TEA mini-app smoke (view opcodes, no GUI)
+just gleam-app         # whole-window Gleam app (thin Vidya shell)
+just host              # aesthetic showcase (desktop egui)
+just showcase          # same as host (--showcase)
 just waydroid          # in-tree cargo apk → install → launch on Waydroid
-just host              # desktop egui window (builds gleam_fib first)
 just install           # same as waydroid (rebuild APK)
 just launch            # start installed activity only
 just shots             # Waydroid screencaps → docs/screenshots/mobile/
@@ -61,7 +65,14 @@ just shots             # Waydroid screencaps → docs/screenshots/mobile/
 
 `just waydroid` builds **in `android-demo/`** with the nix develop toolchain (no temp/isolated copy).
 
-Desktop host (`just host` / `just fib`) compiles `examples/gleam_fib` with a wasm-capable Gleam (`GLEAM` or `~/code/gleam`, branch `wasm`) and loads the module via wasmtime.
+Desktop host compiles `examples/gleam_{fib,gui,shell}` with a wasm-capable Gleam
+(`GLEAM` or `~/code/gleam`, branch `wasm`) and loads the modules via wasmtime.
+
+- **`just gleam-app`** — Gleam owns the **entire** window UI tree (Home / About
+  navigation, counter). Rust/Vidya only opens the window, applies the dark theme,
+  materializes view opcodes, and forwards button msgs into a long-lived Wasm instance.
+- **`just host`** / **`just showcase`** — the aesthetic showcase. Overview still
+  embeds a Gleam shell card as a preview; use `gleam-app` for the full-window experience.
 
 Sections:
 

@@ -1,0 +1,4 @@
+name = "gleam_shell"
+version = "0.1.0"
+description = "Gleam TEA mini-app — view opcodes for a thin Vidya/egui shell"
+target = "wasm"

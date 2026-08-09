@@ -1,5 +1,5 @@
-//! Compile `examples/gleam_fib` with a wasm-capable Gleam, then copy the
-//! module next to the host crate so runtime can `include_bytes!` it.
+//! Compile Gleam Wasm guests (`examples/gleam_{fib,gui,shell}`), then
+//! copy each `.wasm` into OUT_DIR for `include_bytes!`.
 
 use std::env;
 use std::fs;
@@ -8,23 +8,54 @@ use std::process::Command;
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let guest_dir = manifest_dir.join("../examples/gleam_fib");
-    let guest_src = guest_dir.join("src/gleam_fib.gleam");
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let gleam = find_gleam(&manifest_dir);
+    eprintln!(
+        "vidya-demo-host build.rs: gleam → {}",
+        gleam.display()
+    );
+    println!("cargo:rerun-if-env-changed=GLEAM");
+
+    build_guest(
+        &gleam,
+        &manifest_dir,
+        &out_dir,
+        "gleam_fib",
+        "src/gleam_fib.gleam",
+    );
+    build_guest(
+        &gleam,
+        &manifest_dir,
+        &out_dir,
+        "gleam_gui",
+        "src/gleam_gui.gleam",
+    );
+    build_guest(
+        &gleam,
+        &manifest_dir,
+        &out_dir,
+        "gleam_shell",
+        "src/gleam_shell.gleam",
+    );
+}
+
+fn build_guest(
+    gleam: &Path,
+    manifest_dir: &Path,
+    out_dir: &Path,
+    package: &str,
+    src_rel: &str,
+) {
+    let guest_dir = manifest_dir.join("../examples").join(package);
+    let guest_src = guest_dir.join(src_rel);
 
     println!("cargo:rerun-if-changed={}", guest_src.display());
     println!(
         "cargo:rerun-if-changed={}",
         guest_dir.join("gleam.toml").display()
     );
-    println!("cargo:rerun-if-env-changed=GLEAM");
 
-    let gleam = find_gleam(&manifest_dir);
-    eprintln!(
-        "vidya-demo-host build.rs: gleam → {}",
-        gleam.display()
-    );
-
-    let status = Command::new(&gleam)
+    let status = Command::new(gleam)
         .current_dir(&guest_dir)
         .arg("build")
         .status()
@@ -49,7 +80,10 @@ fn main() {
         );
     }
 
-    let wasm_src = guest_dir.join("build/dev/wasm/gleam_fib/gleam_fib.wasm");
+    let wasm_src = guest_dir
+        .join("build/dev/wasm")
+        .join(package)
+        .join(format!("{package}.wasm"));
     if !wasm_src.is_file() {
         panic!(
             "gleam build succeeded but {} was not created",
@@ -57,8 +91,7 @@ fn main() {
         );
     }
 
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let wasm_dst = out_dir.join("gleam_fib.wasm");
+    let wasm_dst = out_dir.join(format!("{package}.wasm"));
     fs::copy(&wasm_src, &wasm_dst).unwrap_or_else(|err| {
         panic!(
             "copy {} → {}: {err}",
@@ -67,15 +100,15 @@ fn main() {
         );
     });
 
-    // Also keep a stable path under host/target for inspection / wasmtime CLI.
-    let inspect = manifest_dir.join("target/gleam_fib.wasm");
+    // Stable path under host/target for inspection / wasmtime CLI.
+    let inspect = manifest_dir.join("target").join(format!("{package}.wasm"));
     if let Some(parent) = inspect.parent() {
         let _ = fs::create_dir_all(parent);
     }
     let _ = fs::copy(&wasm_src, &inspect);
 
     eprintln!(
-        "vidya-demo-host build.rs: guest ready ({} bytes) → {}",
+        "vidya-demo-host build.rs: {package} ready ({} bytes) → {}",
         fs::metadata(&wasm_dst).map(|m| m.len()).unwrap_or(0),
         wasm_dst.display()
     );

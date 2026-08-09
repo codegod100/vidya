@@ -22,7 +22,7 @@ eframe = { version = "0.31", default-features = false, features = [
     "wayland",
     "x11",
 ] }
-# Load Gleam-compiled fib guest (examples/gleam_fib).
+# Load Gleam-compiled Wasm guests (examples/gleam_{fib,gui,shell}).
 wasmtime = { version = "29", default-features = false, features = [
     "cranelift",
     "runtime",
