@@ -1,15 +1,20 @@
 //! Load Gleam-compiled Wasm guests and call typed exports (`module__function`).
 //!
-//! Gleam `Int` ↔ Wasm `i64`. Guests omit `main` so Instantiation needs no imports.
-//! Calculator + shell each keep one Engine / Module / Store / Instance for the process.
+//! Gleam `Int` ↔ Wasm `i64`. Gleam `String` ↔ `i32` ptr into exported `memory`
+//! (see [`crate::gleam_string`]). Guests omit `main` so Instantiation needs no
+//! imports. Calculator / shell / strings each keep one Engine / Module / Store /
+//! Instance for the process.
 
 use std::sync::{Mutex, OnceLock};
 
-use wasmtime::{Engine, Instance, Module, Store, TypedFunc};
+use wasmtime::{Engine, Instance, Memory, Module, Store, TypedFunc};
+
+use crate::gleam_string::{self, HostStringArena};
 
 const FIB_WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam_fib.wasm"));
 const GUI_WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam_gui.wasm"));
 const SHELL_WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam_shell.wasm"));
+const STR_WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam_str.wasm"));
 
 const FIB_EXPORT: &str = "gleam_fib__fib";
 
@@ -34,8 +39,19 @@ struct ShellSession {
     view_at: TypedFunc<(i64, i64), i64>,
 }
 
+struct StrSession {
+    store: Store<()>,
+    memory: Memory,
+    arena: HostStringArena,
+    hello: TypedFunc<(), i32>,
+    echo: TypedFunc<i32, i32>,
+    greet: TypedFunc<i32, i32>,
+    same: TypedFunc<(i32, i32), i32>,
+}
+
 static GUI: OnceLock<Mutex<GuiSession>> = OnceLock::new();
 static SHELL: OnceLock<Mutex<ShellSession>> = OnceLock::new();
+static STR: OnceLock<Mutex<StrSession>> = OnceLock::new();
 
 fn gui() -> Result<&'static Mutex<GuiSession>, String> {
     if let Some(g) = GUI.get() {
@@ -56,6 +72,16 @@ fn shell() -> Result<&'static Mutex<ShellSession>, String> {
     SHELL
         .get()
         .ok_or_else(|| "shell session missing after init".into())
+}
+
+fn str_session() -> Result<&'static Mutex<StrSession>, String> {
+    if let Some(s) = STR.get() {
+        return Ok(s);
+    }
+    let session = StrSession::load()?;
+    let _ = STR.set(Mutex::new(session));
+    STR.get()
+        .ok_or_else(|| "str session missing after init".into())
 }
 
 impl GuiSession {
@@ -130,6 +156,48 @@ impl ShellSession {
             update: get2(&mut store, "gleam_shell__update")?,
             view_len: get1(&mut store, "gleam_shell__view_len")?,
             view_at: get2(&mut store, "gleam_shell__view_at")?,
+            store,
+        })
+    }
+}
+
+impl StrSession {
+    fn load() -> Result<Self, String> {
+        let engine = Engine::default();
+        let module =
+            Module::new(&engine, STR_WASM).map_err(|e| format!("parse gleam_str.wasm: {e}"))?;
+        let mut store = Store::new(&engine, ());
+        let instance = Instance::new(&mut store, &module, &[])
+            .map_err(|e| format!("instantiate gleam_str.wasm: {e}"))?;
+
+        let memory = instance
+            .get_memory(&mut store, "memory")
+            .ok_or_else(|| "gleam_str.wasm missing exported memory".to_string())?;
+
+        let get0 = |store: &mut Store<()>, name: &str| -> Result<TypedFunc<(), i32>, String> {
+            instance
+                .get_typed_func(store, name)
+                .map_err(|e| format!("export {name}: {e}"))
+        };
+        let get1 = |store: &mut Store<()>, name: &str| -> Result<TypedFunc<i32, i32>, String> {
+            instance
+                .get_typed_func(store, name)
+                .map_err(|e| format!("export {name}: {e}"))
+        };
+        let get2 =
+            |store: &mut Store<()>, name: &str| -> Result<TypedFunc<(i32, i32), i32>, String> {
+                instance
+                    .get_typed_func(store, name)
+                    .map_err(|e| format!("export {name}: {e}"))
+            };
+
+        Ok(Self {
+            hello: get0(&mut store, "gleam_str__hello")?,
+            echo: get1(&mut store, "gleam_str__roundtrip")?,
+            greet: get1(&mut store, "gleam_str__greet")?,
+            same: get2(&mut store, "gleam_str__same")?,
+            memory,
+            arena: HostStringArena::new(),
             store,
         })
     }
@@ -245,6 +313,54 @@ pub fn shell_view_at(model: i64, i: i64) -> Result<i64, String> {
     })
 }
 
+/// Guest literal → host `String` (`gleam_str__hello`).
+pub fn str_hello() -> Result<String, String> {
+    with_str(|s| {
+        let ptr = s
+            .hello
+            .call(&mut s.store, ())
+            .map_err(|e| format!("call gleam_str__hello(): {e}"))?;
+        gleam_string::read(&s.memory, &s.store, ptr)
+    })
+}
+
+/// Host → guest → host round-trip (`gleam_str__roundtrip`).
+pub fn str_echo(value: &str) -> Result<String, String> {
+    with_str(|s| {
+        let ptr = gleam_string::write(&mut s.arena, &s.memory, &mut s.store, value)?;
+        let out = s
+            .echo
+            .call(&mut s.store, ptr)
+            .map_err(|e| format!("call gleam_str__roundtrip({ptr}): {e}"))?;
+        gleam_string::read(&s.memory, &s.store, out)
+    })
+}
+
+/// Host name → guest concat (`gleam_str__greet`).
+pub fn str_greet(name: &str) -> Result<String, String> {
+    with_str(|s| {
+        let ptr = gleam_string::write(&mut s.arena, &s.memory, &mut s.store, name)?;
+        let out = s
+            .greet
+            .call(&mut s.store, ptr)
+            .map_err(|e| format!("call gleam_str__greet({ptr}): {e}"))?;
+        gleam_string::read(&s.memory, &s.store, out)
+    })
+}
+
+/// Host string equality via guest (`gleam_str__same`).
+pub fn str_same(a: &str, b: &str) -> Result<bool, String> {
+    with_str(|s| {
+        let pa = gleam_string::write(&mut s.arena, &s.memory, &mut s.store, a)?;
+        let pb = gleam_string::write(&mut s.arena, &s.memory, &mut s.store, b)?;
+        let eq = s
+            .same
+            .call(&mut s.store, (pa, pb))
+            .map_err(|e| format!("call gleam_str__same({pa}, {pb}): {e}"))?;
+        Ok(eq != 0)
+    })
+}
+
 fn with_gui<T>(f: impl FnOnce(&mut GuiSession) -> Result<T, String>) -> Result<T, String> {
     let mutex = gui()?;
     let mut g = mutex
@@ -258,6 +374,14 @@ fn with_shell<T>(f: impl FnOnce(&mut ShellSession) -> Result<T, String>) -> Resu
     let mut s = mutex
         .lock()
         .map_err(|_| "gleam shell session lock poisoned".to_string())?;
+    f(&mut s)
+}
+
+fn with_str<T>(f: impl FnOnce(&mut StrSession) -> Result<T, String>) -> Result<T, String> {
+    let mutex = str_session()?;
+    let mut s = mutex
+        .lock()
+        .map_err(|_| "gleam str session lock poisoned".to_string())?;
     f(&mut s)
 }
 

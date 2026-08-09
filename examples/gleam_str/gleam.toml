@@ -1,0 +1,4 @@
+name = "gleam_str"
+version = "0.1.0"
+description = "Gleam → Wasm string ABI smoke guest for vidya-demo-host"
+target = "wasm"

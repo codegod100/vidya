@@ -1,14 +1,17 @@
 //! Desktop host: `just host` (showcase) · `just gleam-app` (whole Gleam window)
 //!
 //! `build.rs` compiles Gleam Wasm guests; this binary loads them via wasmtime
-//! (`gleam_fib__fib`, `gleam_gui__*`, `gleam_shell__{init,update,view_*}`).
+//! (`gleam_fib__fib`, `gleam_gui__*`, `gleam_shell__{init,update,view_*}`,
+//! `gleam_str__{hello,roundtrip,greet,same}`).
 
 mod gleam_guest;
+mod gleam_string;
 
 fn main() -> eframe::Result {
     let fib_only = std::env::args().any(|a| a == "--fib-only");
     let gui_only = std::env::args().any(|a| a == "--gui-only");
     let shell_only = std::env::args().any(|a| a == "--shell-only");
+    let str_only = std::env::args().any(|a| a == "--str-only");
     let gleam_app = std::env::args().any(|a| a == "--gleam-app");
     let showcase = std::env::args().any(|a| a == "--showcase");
 
@@ -82,7 +85,22 @@ fn main() -> eframe::Result {
         }
     }
 
-    if fib_only || gui_only || shell_only {
+    match smoke_str() {
+        Ok(summary) => {
+            println!("gleam wasm str smoke → {summary}");
+            if str_only {
+                return Ok(());
+            }
+        }
+        Err(err) => {
+            eprintln!("gleam wasm str failed: {err}");
+            if str_only {
+                std::process::exit(1);
+            }
+        }
+    }
+
+    if fib_only || gui_only || shell_only || str_only {
         return Ok(());
     }
 
@@ -218,4 +236,41 @@ fn expect_display(
         ));
     }
     Ok(())
+}
+
+/// Guest literals + host→guest write + concat + equality.
+fn smoke_str() -> Result<String, String> {
+    let hello = gleam_guest::str_hello()?;
+    if hello != "hello from gleam" {
+        return Err(format!("hello: expected \"hello from gleam\", got {hello:?}"));
+    }
+
+    let echoed = gleam_guest::str_echo("vidya")?;
+    if echoed != "vidya" {
+        return Err(format!("echo: expected \"vidya\", got {echoed:?}"));
+    }
+
+    let greeted = gleam_guest::str_greet("world")?;
+    if greeted != "hello, world!" {
+        return Err(format!("greet: expected \"hello, world!\", got {greeted:?}"));
+    }
+
+    if !gleam_guest::str_same("a", "a")? {
+        return Err("same(\"a\",\"a\") expected true".into());
+    }
+    if gleam_guest::str_same("a", "b")? {
+        return Err("same(\"a\",\"b\") expected false".into());
+    }
+
+    // Empty string + unicode.
+    let empty = gleam_guest::str_echo("")?;
+    if !empty.is_empty() {
+        return Err(format!("echo empty: expected \"\", got {empty:?}"));
+    }
+    let uni = gleam_guest::str_greet("世界")?;
+    if uni != "hello, 世界!" {
+        return Err(format!("greet unicode: expected \"hello, 世界!\", got {uni:?}"));
+    }
+
+    Ok(format!("hello={hello:?} greet={greeted:?} uni={uni:?}"))
 }

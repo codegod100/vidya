@@ -1,4 +1,4 @@
-//! Compile Gleam Wasm guests (`examples/gleam_{fib,gui,shell}`), then
+//! Compile Gleam Wasm guests (`examples/gleam_{fib,gui,shell,str}`), then
 //! copy each `.wasm` into OUT_DIR for `include_bytes!`.
 
 use std::env;
@@ -36,6 +36,13 @@ fn main() {
         &out_dir,
         "gleam_shell",
         "src/gleam_shell.gleam",
+    );
+    build_guest(
+        &gleam,
+        &manifest_dir,
+        &out_dir,
+        "gleam_str",
+        "src/gleam_str.gleam",
     );
 }
 

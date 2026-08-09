@@ -54,6 +54,7 @@ nix develop            # rust (+ android target) · just · adb · GLEAM if pres
 just fib               # Gleam → Wasm guest + wasmtime fib(10) (no GUI)
 just gleam-gui         # Gleam calculator guest smoke (multi-step, no GUI)
 just gleam-shell       # Gleam TEA mini-app smoke (view opcodes, no GUI)
+just gleam-str         # Gleam string ABI smoke (read/write/concat/eq, no GUI)
 just gleam-app         # whole-window Gleam app (thin Vidya shell)
 just host              # aesthetic showcase (desktop egui)
 just showcase          # same as host (--showcase)
@@ -65,9 +66,13 @@ just shots             # Waydroid screencaps → docs/screenshots/mobile/
 
 `just waydroid` builds **in `android-demo/`** with the nix develop toolchain (no temp/isolated copy).
 
-Desktop host compiles `examples/gleam_{fib,gui,shell}` with a wasm-capable Gleam
+Desktop host compiles `examples/gleam_{fib,gui,shell,str}` with a wasm-capable Gleam
 (`GLEAM` or `~/code/gleam`, branch `wasm`) and loads the modules via wasmtime.
 
+- **`just gleam-str`** — host↔guest **String** marshalling (`host/src/gleam_string.rs`):
+  Gleam `String` is an `i32` pointer to `{ len: u32, data: [u8; len] }` in
+  exported `memory`. Host reads guest literals and writes into a high-memory
+  arena (grown pages) so guest bump-alloc is left alone.
 - **`just gleam-app`** — Gleam owns the **entire** window UI tree (Home / About
   navigation, counter). Rust/Vidya only opens the window, applies the dark theme,
   materializes view opcodes, and forwards button msgs into a long-lived Wasm instance.

@@ -1,6 +1,7 @@
 # Vidya
 #   nix develop   # puts rustup/cargo on PATH (+ optional RUSTFLAGS)
 #   just gleam-app  # whole-window Gleam mini-app (thin Vidya shell)
+#   just gleam-str  # string ABI smoke (host↔guest)
 #   just host       # aesthetic showcase
 #   just fib / just gleam-gui / just gleam-shell / just waydroid
 
@@ -33,6 +34,10 @@ gleam-gui:
 # Build Gleam → Wasm TEA shell guest and smoke Home/About + Inc/Dec/Reset (no GUI)
 gleam-shell:
     cargo run --manifest-path host/Cargo.toml -- --shell-only
+
+# Build Gleam → Wasm string guest and smoke read/write/concat/eq (no GUI)
+gleam-str:
+    cargo run --manifest-path host/Cargo.toml -- --str-only
 
 lib:
     cargo build --lib
