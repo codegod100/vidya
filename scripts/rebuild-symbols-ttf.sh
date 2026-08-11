@@ -4,6 +4,7 @@
 # Keeps the font small while covering glyphs Ubuntu Light lacks:
 #   - HIG-style UI punctuation (arrows, bullets, disclosure triangles, quotes)
 #   - Common math/prose Unicode LLMs emit outside $…$ (ℝ, ⁿ, ∑, Greek, …)
+#   - Box drawing + block elements (Bluesky / profile ASCII art: █▄▀░ ─│┐…)
 # On Android / egui those otherwise render as hollow boxes (“tofu”).
 set -euo pipefail
 
@@ -56,7 +57,7 @@ if ! command -v pyftsubset >/dev/null 2>&1; then
 fi
 
 # Keep in sync with assets/NOTICE.
-# Ranges cover LLM math-in-prose; singletons cover UI punctuation.
+# Ranges cover LLM math-in-prose + box/block art; singletons cover UI punctuation.
 UNICODES=$(
   cat <<'EOF' | tr '\n' ',' | sed 's/,$//'
 U+00B0
@@ -83,6 +84,8 @@ U+2070-209F
 U+2100-214F
 U+2190-21FF
 U+2200-22FF
+U+2500-257F
+U+2580-259F
 U+25A0
 U+25A1
 U+25B2
