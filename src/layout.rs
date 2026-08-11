@@ -225,7 +225,7 @@ pub fn inset_row(ui: &mut Ui, theme: &Theme, add: impl FnOnce(&mut Ui)) -> Inner
     ui.set_max_width(outer);
     Frame::new()
         .fill(theme.palette.popover_bg)
-        .stroke(Stroke::new(1.0, theme.palette.border_soft))
+        .stroke(Stroke::new(1.0_f32, theme.palette.border_soft))
         .corner_radius(theme.spacing.radius_sm)
         .inner_margin(Margin::symmetric(
             theme.spacing.md as i8,
