@@ -29,3 +29,11 @@ launch:
 
 shots:
     ./scripts/waydroid-demo.sh shots
+
+# Gleam UI package (JS target) + example IR fixture
+gleam-test:
+    cd gleam/vidya && gleam test
+
+gleam-example:
+    cd gleam/example && gleam run 2>/dev/null > demo_app.json
+    python3 -c "import json; p='gleam/example/demo_app.json'; json.dump(json.load(open(p)), open(p,'w'), indent=2); open(p,'a').write('\n')"

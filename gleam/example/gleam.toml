@@ -1,0 +1,14 @@
+name = "vidya_example"
+version = "0.1.0"
+gleam = ">= 1.13.0"
+licences = ["MIT"]
+description = "Example: entire Vidya UI designed in Gleam"
+target = "javascript"
+
+[dependencies]
+gleam_stdlib = ">= 0.60.0 and < 2.0.0"
+gleam_json = ">= 3.0.0 and < 4.0.0"
+vidya = { path = "../vidya" }
+
+[dev-dependencies]
+gleeunit = ">= 1.2.0 and < 2.0.0"

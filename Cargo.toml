@@ -23,3 +23,6 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 # Optional: H.264 decode for chat / embed video previews.
 openh264 = { version = "0.9", optional = true, default-features = false, features = ["source"] }
 mp4 = { version = "0.14", optional = true }
+# Gleam UI IR (JSON bridge) — see `gleam/vidya` and [`gleam`].
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

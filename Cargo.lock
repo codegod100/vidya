@@ -650,6 +650,8 @@ dependencies = [
  "mp4",
  "openh264",
  "png",
+ "serde",
+ "serde_json",
  "zip",
 ]
 
