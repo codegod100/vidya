@@ -99,7 +99,7 @@ use egui::{Context, FontFamily, FontId, Style, TextStyle};
 /// Install palette + spacing + text styles on the egui context.
 ///
 /// Also registers a small symbol-font fallback so punctuation like `→` / `●` /
-/// `▾` / `▴` does not render as hollow boxes on Android.
+/// `▾` / `▴` and block/box art (`█▄▀░`) do not render as hollow boxes on Android.
 pub fn apply(ctx: &Context, theme: &Theme) {
     install_symbol_font(ctx);
     ctx.set_visuals(theme.visuals());
