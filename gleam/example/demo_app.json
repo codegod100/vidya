@@ -1,0 +1,262 @@
+{
+  "theme": "dark",
+  "page": {
+    "id": "gleam-main",
+    "cols": [
+      {
+        "kind": "flex"
+      }
+    ],
+    "sections": [
+      {
+        "kind": "card",
+        "children": [
+          {
+            "kind": "title",
+            "text": "Designed in Gleam"
+          },
+          {
+            "kind": "body",
+            "text": "Every widget below is a Vidya component, composed as a Gleam tree and rendered by egui."
+          },
+          {
+            "kind": "two_col",
+            "left": {
+              "kind": "vstack",
+              "children": [
+                {
+                  "kind": "title_2",
+                  "text": "Preferences"
+                },
+                {
+                  "kind": "checkbox",
+                  "id": "sync",
+                  "label": "Sync preferences",
+                  "checked": true
+                },
+                {
+                  "kind": "checkbox",
+                  "id": "notify",
+                  "label": "Desktop notifications",
+                  "checked": false
+                },
+                {
+                  "kind": "text_field",
+                  "id": "display_name",
+                  "value": "nandi",
+                  "multiline": false,
+                  "rows": 1
+                },
+                {
+                  "kind": "text_field",
+                  "id": "notes",
+                  "value": "Hello from Gleam",
+                  "multiline": true,
+                  "rows": 3
+                }
+              ]
+            },
+            "right": {
+              "kind": "vstack",
+              "children": [
+                {
+                  "kind": "title_2",
+                  "text": "Actions"
+                },
+                {
+                  "kind": "hflow",
+                  "children": [
+                    {
+                      "kind": "primary_button",
+                      "id": "save",
+                      "label": "Save"
+                    },
+                    {
+                      "kind": "button",
+                      "id": "cancel",
+                      "label": "Cancel"
+                    },
+                    {
+                      "kind": "destructive_button",
+                      "id": "reset",
+                      "label": "Reset"
+                    }
+                  ]
+                },
+                {
+                  "kind": "hflow",
+                  "children": [
+                    {
+                      "kind": "status_dot",
+                      "live": true
+                    },
+                    {
+                      "kind": "body",
+                      "text": "Live"
+                    },
+                    {
+                      "kind": "reaction_chip",
+                      "id": "heart",
+                      "emoji": "\u2764\ufe0f",
+                      "count": 3,
+                      "mine": true
+                    },
+                    {
+                      "kind": "icon",
+                      "icon": "heart",
+                      "size": 22
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "kind": "card",
+        "children": [
+          {
+            "kind": "title_2",
+            "text": "Throughput"
+          },
+          {
+            "kind": "grid",
+            "id": "procs",
+            "cols": [
+              {
+                "kind": "flex"
+              },
+              {
+                "kind": "metric_bps"
+              },
+              {
+                "kind": "metric_rate"
+              }
+            ],
+            "rows": [
+              {
+                "kind": "values",
+                "cells": [
+                  {
+                    "kind": "heading",
+                    "text": "Name"
+                  },
+                  {
+                    "kind": "heading",
+                    "text": "Write"
+                  },
+                  {
+                    "kind": "heading",
+                    "text": "Freq"
+                  }
+                ]
+              },
+              {
+                "kind": "values",
+                "cells": [
+                  {
+                    "kind": "text",
+                    "text": "chrome"
+                  },
+                  {
+                    "kind": "metric_bps",
+                    "bps": 1250000
+                  },
+                  {
+                    "kind": "metric_rate",
+                    "rate": 42
+                  }
+                ]
+              },
+              {
+                "kind": "values",
+                "cells": [
+                  {
+                    "kind": "text",
+                    "text": "gleam"
+                  },
+                  {
+                    "kind": "metric_bps",
+                    "bps": 8200
+                  },
+                  {
+                    "kind": "metric_rate",
+                    "rate": 12
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "pack",
+        "children": [
+          {
+            "kind": "compact_card",
+            "width": 160,
+            "children": [
+              {
+                "kind": "title_2",
+                "text": "CPU"
+              },
+              {
+                "kind": "body",
+                "text": "18%"
+              }
+            ]
+          },
+          {
+            "kind": "compact_card",
+            "width": 160,
+            "children": [
+              {
+                "kind": "title_2",
+                "text": "Mem"
+              },
+              {
+                "kind": "body",
+                "text": "2.1 GB"
+              }
+            ]
+          },
+          {
+            "kind": "compact_card",
+            "width": 160,
+            "children": [
+              {
+                "kind": "title_2",
+                "text": "Net"
+              },
+              {
+                "kind": "body",
+                "text": "12 Mb/s"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "header": {
+    "kind": "hflow",
+    "children": [
+      {
+        "kind": "title_2",
+        "text": "Vidya"
+      },
+      {
+        "kind": "primary_button",
+        "id": "ping",
+        "label": "Ping"
+      },
+      {
+        "kind": "icon_button",
+        "id": "add",
+        "icon": "plus",
+        "tip": "Add"
+      }
+    ]
+  }
+}

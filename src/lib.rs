@@ -49,10 +49,17 @@
 //! apply_dark(ctx);
 //! if vidya::primary_button(ui, &Theme::dark(), "Open").clicked() { /* … */ }
 //! ```
+//!
+//! # Gleam UI
+//!
+//! Design entire screens in Gleam (`gleam/vidya`) as a declarative tree, encode
+//! to JSON, and render with [`gleam::render_app`]. See the crate's `gleam/`
+//! directory and the README “Gleam” section.
 
 mod app_icon;
 mod chrome;
 mod fonts;
+pub mod gleam;
 mod hotkeys;
 mod icons;
 mod layout;

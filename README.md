@@ -141,6 +141,57 @@ As a flake input:
 inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 ```
 
+## Gleam
+
+Design entire screens in **Gleam** and render them with Vidya/egui.
+
+Gleam owns the model and `view` (`gleam/vidya`). Each frame encode an `App` tree
+to JSON; Rust walks it with [`vidya::gleam::render_app`](src/gleam.rs) and returns
+`click` / `check` / `input` events keyed by widget `id`.
+
+```gleam
+import gleam/option.{None}
+import vidya
+
+pub fn view() -> vidya.App {
+  vidya.app(
+    vidya.page("main", [
+      vidya.card([
+        vidya.title("Hello"),
+        vidya.checkbox("sync", "Sync", True),
+        vidya.primary_button("save", "Save"),
+      ]),
+    ]),
+  )
+}
+```
+
+```rust
+let app = vidya::gleam::app_from_json(&json)?;
+let events = vidya::gleam::render_app(ctx, &app);
+// map Event::Click { id: "save" } → your message
+```
+
+| Gleam | Rust Vidya |
+|-------|------------|
+| `title` / `title_2` / `body` / `dim` | `title` / `title_2` / `body` / `dim_label` |
+| `primary_button` / `button` / `destructive_button` | same |
+| `icon_button` / `checkbox` / `text_field*` | same |
+| `status_dot` / `icon` / `emoji` / `reaction_chip` | same |
+| `vstack` / `hflow` / `pack` / `card` / `compact_card` | same |
+| `inset_row` / `lead_trail` / `two_col` | same |
+| `page` + sections | `central_page` / `GridCtx::section` |
+| `grid` + `row_values` / `heading` / `metric_bps`… | `grid_cols` + `RowDsl` |
+
+```bash
+just gleam-test      # gleam/vidya package tests
+just gleam-example   # rewrite gleam/example/demo_app.json
+```
+
+The example app under `gleam/example` composes a full page (header, forms,
+actions, metrics grid, compact cards). Its JSON fixture is parsed in Rust unit
+tests so the bridge stays in sync.
+
 ## API
 
 | Item | Role |
@@ -193,6 +244,9 @@ inputs.vidya.url = "git+https://tangled.org/nandi.uk/vidya";
 | `with_app_icon` | `ViewportBuilder` + embedded PNG icon |
 | `with_app_icon_id` | Same + Wayland `app_id` (match `.desktop` / `StartupWMClass`) |
 | `try_with_app_icon` / `try_with_app_icon_id` | Fallible variants |
+| **Gleam bridge** | Declarative UI IR (`gleam/vidya` ↔ JSON ↔ egui) |
+| `gleam::App` / `Node` / `Event` | Page tree + interaction events |
+| `gleam::render_app` / `app_from_json` | Apply theme, paint tree, return events |
 
 ## License
 
