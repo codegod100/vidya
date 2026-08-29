@@ -1,6 +1,8 @@
 /target
 /android-demo/target
 /host/target
+/jolt/.jolt
+/raylib/build
 /result
 /result-*
 /demo

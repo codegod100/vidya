@@ -1,0 +1,80 @@
+(ns vidya.core
+  "Jolt bindings for Vidya's raylib C ABI.
+
+  Build raylib/libvidya first and make it discoverable through the platform
+  shared-library search path before requiring this namespace."
+  (:require [jolt.ffi :as ffi]))
+
+(def dark 0)
+(def light 1)
+(def default-button 0)
+(def primary-button-kind 1)
+(def destructive-button-kind 2)
+
+(ffi/defcfn raw-open "vidya_open" [:int :int :string] :int)
+(ffi/defcfn close! "vidya_close" [] :void)
+(ffi/defcfn raw-should-close "vidya_should_close" [] :int)
+(ffi/defcfn set-target-fps! "vidya_set_target_fps" [:int] :void)
+(ffi/defcfn set-mode! "vidya_set_mode" [:int] :void)
+(ffi/defcfn get-mode "vidya_get_mode" [] :int)
+(ffi/defcfn begin-frame! "vidya_begin_frame" [] :void)
+(ffi/defcfn end-frame! "vidya_end_frame" [] :void)
+(ffi/defcfn raw-page-begin "vidya_page_begin" [:float] :void)
+(ffi/defcfn page-end! "vidya_page_end" [] :void)
+(ffi/defcfn card-begin! "vidya_card_begin" [] :void)
+(ffi/defcfn card-end! "vidya_card_end" [] :void)
+(ffi/defcfn gap! "vidya_gap" [:float] :void)
+(ffi/defcfn separator! "vidya_separator" [] :void)
+(ffi/defcfn title! "vidya_title" [:string] :void)
+(ffi/defcfn title-2! "vidya_title_2" [:string] :void)
+(ffi/defcfn body! "vidya_body" [:string] :void)
+(ffi/defcfn dim-label! "vidya_dim_label" [:string] :void)
+(ffi/defcfn raw-button "vidya_button" [:string :int] :int)
+(ffi/defcfn raw-checkbox-value "vidya_checkbox_value" [:string :int] :int)
+(ffi/defcfn raw-status "vidya_status" [:string :int] :void)
+
+(defn open!
+  ([width height title]
+   (not (zero? (raw-open width height title))))
+  ([title] (open! 900 640 title)))
+
+(defn should-close? [] (not (zero? (raw-should-close))))
+(defn page-begin!
+  ([] (raw-page-begin 0.0))
+  ([max-width] (raw-page-begin (float max-width))))
+(defn button! [label] (not (zero? (raw-button label default-button))))
+(defn primary-button! [label]
+  (not (zero? (raw-button label primary-button-kind))))
+(defn destructive-button! [label]
+  (not (zero? (raw-button label destructive-button-kind))))
+(defn checkbox!
+  "Draw a checkbox and return its possibly toggled boolean value."
+  [label checked]
+  (not (zero? (raw-checkbox-value label (if checked 1 0)))))
+(defn status!
+  "Draw a semantic live/offline indicator."
+  [label live?]
+  (raw-status label (if live? 1 0)))
+(defn card!
+  "Render f inside a card, restoring the parent layout even if f throws."
+  [f]
+  (card-begin!)
+  (try
+    (f)
+    (finally (card-end!))))
+
+(defn run!
+  "Open a window and invoke render-fn once per frame until it closes."
+  ([title render-fn] (run! 900 640 title render-fn))
+  ([width height title render-fn]
+   (when-not (open! width height title)
+     (throw (ex-info "Vidya could not open a raylib window" {})))
+   (set-target-fps! 60)
+   (try
+     (while (not (should-close?))
+       (begin-frame!)
+       (page-begin!)
+       (render-fn)
+       (page-end!)
+       (end-frame!))
+     (finally (close!)))))

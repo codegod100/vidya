@@ -1,0 +1,22 @@
+(ns vidya.examples.showcase
+  (:require [vidya.core :as ui]))
+
+(def enabled (atom true))
+
+(defn render []
+  (ui/title! "Vidya")
+  (ui/dim-label! "Jolt → C ABI → raylib")
+  (ui/gap! 12.0)
+  (ui/card-begin!)
+  (ui/title-2! "Actions")
+  (ui/body! "The application remains ordinary Jolt code.")
+  (when (ui/primary-button! "Primary action")
+    (println "primary action"))
+  (ui/button! "Default action")
+  (ui/destructive-button! "Destructive action")
+  (reset! enabled (ui/checkbox! "Sync preferences" @enabled))
+  (ui/status! (if @enabled "Connected" "Offline") @enabled)
+  (ui/card-end!))
+
+(defn -main [& _]
+  (ui/run! 720 480 "Vidya · Jolt" render))

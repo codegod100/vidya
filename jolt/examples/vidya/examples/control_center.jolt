@@ -1,0 +1,97 @@
+(ns vidya.examples.control-center
+  "A small stateful desktop application built with Jolt, Vidya, and raylib."
+  (:require [vidya.core :as ui]))
+
+(def defaults
+  {:connected? false
+   :notifications? true
+   :start-at-login? false
+   :usage-data? false
+   :dark? true})
+
+(def settings (atom defaults))
+(def save-state (atom :clean))
+
+(defn update-setting! [key value]
+  (swap! settings assoc key value)
+  (reset! save-state :dirty))
+
+(defn connection-card []
+  (ui/card!
+    (fn []
+      (ui/title-2! "Device")
+      (ui/status! (if (:connected? @settings)
+                    "Workstation connected"
+                    "Workstation offline")
+                  (:connected? @settings))
+      (ui/body! (if (:connected? @settings)
+                  "Preferences are ready to synchronize."
+                  "Connect this device to synchronize preferences."))
+      (if (:connected? @settings)
+        (when (ui/button! "Disconnect")
+          (update-setting! :connected? false))
+        (when (ui/primary-button! "Connect device")
+          (update-setting! :connected? true))))))
+
+(defn preferences-card []
+  (ui/card!
+    (fn []
+      (ui/title-2! "Preferences")
+      (ui/dim-label! "Changes remain local until you save them.")
+      (let [current (:notifications? @settings)
+            next (ui/checkbox! "Desktop notifications" current)]
+        (when (not= current next)
+          (update-setting! :notifications? next)))
+      (let [current (:start-at-login? @settings)
+            next (ui/checkbox! "Start at login" current)]
+        (when (not= current next)
+          (update-setting! :start-at-login? next)))
+      (let [current (:usage-data? @settings)
+            next (ui/checkbox! "Share anonymous usage data" current)]
+        (when (not= current next)
+          (update-setting! :usage-data? next))))))
+
+(defn appearance-card []
+  (ui/card!
+    (fn []
+      (ui/title-2! "Appearance")
+      (ui/body! (if (:dark? @settings)
+                  "Vidya dark is active."
+                  "Vidya light is active."))
+      (when (ui/button! (if (:dark? @settings)
+                          "Use light theme"
+                          "Use dark theme"))
+        (let [dark? (not (:dark? @settings))]
+          (update-setting! :dark? dark?)
+          (ui/set-mode! (if dark? ui/dark ui/light)))))))
+
+(defn actions-card []
+  (ui/card!
+    (fn []
+      (ui/title-2! "Apply changes")
+      (case @save-state
+        :saved (ui/status! "All changes saved" true)
+        :dirty (ui/status! "Unsaved changes" false)
+        (ui/dim-label! "No pending changes"))
+      (when (ui/primary-button! "Save preferences")
+        (reset! save-state :saved))
+      (when (ui/destructive-button! "Reset to defaults")
+        (reset! settings defaults)
+        (ui/set-mode! ui/dark)
+        (reset! save-state :clean)))))
+
+(defn render []
+  (ui/title! "Control Center")
+  (ui/dim-label! "A stateful Jolt app rendered by Vidya on raylib")
+  (ui/gap! 12.0)
+  (connection-card)
+  (ui/gap! 6.0)
+  (preferences-card)
+  (ui/gap! 6.0)
+  (appearance-card)
+  (ui/gap! 6.0)
+  (actions-card))
+
+(defn -main [& _]
+  (ui/set-mode! ui/dark)
+  (ui/run! 720 760 "Vidya Control Center" render))

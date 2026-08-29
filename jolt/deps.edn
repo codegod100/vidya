@@ -1,0 +1,10 @@
+{:paths ["src"]
+ :aliases
+ {:showcase {:extra-paths ["examples"]
+             :main-opts ["-m" "vidya.examples.showcase"]}
+  :app {:extra-paths ["examples"]
+        :main-opts ["-m" "vidya.examples.control-center"]}}
+ :jolt/native
+ [{:name "vidya"
+   :darwin ["libvidya.dylib"]
+   :linux ["libvidya.so"]}]}

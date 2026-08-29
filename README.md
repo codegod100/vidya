@@ -41,6 +41,15 @@ On **Android** (edge-to-edge NativeActivity), call `reserve_system_chrome(ctx, &
 
 An interactive showcase walks through overview, typography, actions, surfaces, palette swatches, and forms. The demo includes a dark/light toggle so you can compare palettes — that control is for the showcase, not a recommended app pattern.
 
+### raylib and Jolt port
+
+The first native C/raylib port lives in [`raylib/`](raylib/README.md), with
+Jolt FFI bindings and a Jolt showcase in [`jolt/`](jolt/README.md). The C ABI
+keeps raylib types private, so Jolt and Zig callers only exchange primitive
+values and UTF-8 strings. This is an independent backend; the established Rust
+implementation remains available while controls and layout facilities are
+ported incrementally.
+
 ```bash
 nix run                  # apps.default → vidya-demo
 nix run .#demo
