@@ -25,6 +25,12 @@ static const float ui_scale = 1.35f;
 static const float ui_scale = 1.0f;
 #endif
 
+/* One accent ramp for every widget that paints itself blue: the primary
+ * button, a checked checkbox, selected text, the keyboard cursor. */
+#define VIDYA_ACCENT 0x3584e4ffu
+#define VIDYA_ACCENT_HOVER 0x4a93e7ffu
+#define VIDYA_ACCENT_ACTIVE 0x1c71d8ffu
+
 static ImVec4_c rgba(unsigned int hex) {
     return (ImVec4_c){
         ((hex >> 24) & 255) / 255.0f,
@@ -321,6 +327,17 @@ static void apply_style(void) {
     s->ChildBorderSize = 1;
     s->FrameBorderSize = 1;
 
+    /* rlImGui uploads the atlas through LoadTextureFromImage, and raylib gives
+     * a single-mipmap texture GL_NEAREST on both filters. The anti-aliasing
+     * ramp Dear ImGui bakes into that atlas for stroked lines therefore samples
+     * as a hard step. Geometry-based line anti-aliasing costs a few vertices
+     * per border and is correct whatever the sampler does. */
+    s->AntiAliasedLinesUseTex = false;
+    /* Largest error, in pixels, tolerated when tessellating a corner arc.
+     * Halving the default is sub-pixel at the 8-10px radii used here, but it
+     * costs a handful of vertices and keeps larger radii honest. */
+    s->CircleTessellationMaxError = 0.10f;
+
     ImVec4_c *c = s->Colors;
     if (mode == VIDYA_LIGHT) {
         c[ImGuiCol_Text] = rgba(0x241f31ff);
@@ -350,6 +367,26 @@ static void apply_style(void) {
     c[ImGuiCol_HeaderActive] = rgba(0x1c71d899);
     c[ImGuiCol_ScrollbarBg] = (ImVec4_c){0, 0, 0, 0};
     c[ImGuiCol_ScrollbarGrab] = rgba(0x5e5c6488);
+
+    /* igStyleColorsDark filled every entry above, so anything left unassigned
+     * keeps Dear ImGui's stock blue-grey and reads as a different theme the
+     * moment a widget enters that state. These are the ones this widget set can
+     * actually reach; a checked checkbox in particular paints itself with
+     * CheckboxSelectedBg rather than FrameBg. */
+    c[ImGuiCol_CheckboxSelectedBg] = rgba(VIDYA_ACCENT);
+    c[ImGuiCol_NavCursor] = rgba(VIDYA_ACCENT);
+    c[ImGuiCol_TextLink] = rgba(VIDYA_ACCENT);
+    c[ImGuiCol_TextSelectedBg] = rgba(0x3584e455);
+    c[ImGuiCol_InputTextCursor] = c[ImGuiCol_Text];
+    c[ImGuiCol_PopupBg] = c[ImGuiCol_ChildBg];
+    c[ImGuiCol_BorderShadow] = (ImVec4_c){0, 0, 0, 0};
+    /* A separator sits inside a card, so it should match that card's border
+     * rather than being brighter than the edge enclosing it. */
+    c[ImGuiCol_Separator] = c[ImGuiCol_Border];
+    c[ImGuiCol_SeparatorHovered] = c[ImGuiCol_Border];
+    c[ImGuiCol_SeparatorActive] = c[ImGuiCol_Border];
+    c[ImGuiCol_ScrollbarGrabHovered] = rgba(0x5e5c64bb);
+    c[ImGuiCol_ScrollbarGrabActive] = rgba(0x5e5c64dd);
 }
 
 int vidya_open(int width, int height, const char *title) {
@@ -516,9 +553,9 @@ int vidya_button(const char *label, int kind) {
     ImVec4_c normal, hover, active, text;
     int pushed = 0;
     if (kind == VIDYA_BUTTON_PRIMARY) {
-        normal = rgba(0x3584e4ff);
-        hover = rgba(0x4a93e7ff);
-        active = rgba(0x1c71d8ff);
+        normal = rgba(VIDYA_ACCENT);
+        hover = rgba(VIDYA_ACCENT_HOVER);
+        active = rgba(VIDYA_ACCENT_ACTIVE);
         text = rgba(0xffffffff);
         pushed = 1;
     } else if (kind == VIDYA_BUTTON_DESTRUCTIVE) {
@@ -542,7 +579,16 @@ int vidya_button(const char *label, int kind) {
 int vidya_checkbox(const char *label, int *checked) {
     if (!checked) return 0;
     bool value = *checked != 0;
+    /* Dear ImGui sizes the check square as FontSize + FramePadding.y * 2. The
+     * padding that gives buttons and entries their height makes that 32px
+     * beside a 16px label, about twice the proportion the HIG draws. Pad the
+     * square on its own; the row keeps the shared vertical rhythm because
+     * ItemSpacing is untouched. */
+    ImGuiStyle *s = igGetStyle();
+    igPushStyleVar_Vec2(ImGuiStyleVar_FramePadding,
+                        (ImVec2_c){s->FramePadding.x, 3 * ui_scale});
     bool changed = igCheckbox(label ? label : "", &value);
+    igPopStyleVar(1);
     *checked = value ? 1 : 0;
     return changed;
 }
@@ -553,11 +599,20 @@ int vidya_checkbox_value(const char *label, int checked) {
 }
 
 void vidya_status(const char *label, int live) {
-    igPushStyleColor_Vec4(ImGuiCol_Text,
-                          live ? rgba(0x2ec27eff) : rgba(0x9a9996ff));
-    igBullet();
-    igPopStyleColor(1);
-    igSameLine(0, 6);
+    /* igBullet draws a dot of FontSize * 0.2 and indents the row like a list
+     * item, which puts a speck hard against the label and out of line with the
+     * controls above it. Draw the dot at a size that reads as a status light,
+     * centred on the text line, starting at the row's own left edge. */
+    const float diameter = 8 * ui_scale;
+    const float line = igGetTextLineHeight();
+    ImVec2_c origin = igGetCursorScreenPos();
+    ImVec2_c center = {origin.x + diameter * 0.5f, origin.y + line * 0.5f};
+    ImDrawList_AddCircleFilled(
+        igGetWindowDrawList(), center, diameter * 0.5f,
+        igColorConvertFloat4ToU32(live ? rgba(0x2ec27eff) : rgba(0x9a9996ff)),
+        0);
+    igDummy((ImVec2_c){diameter, line});
+    igSameLine(0, 8 * ui_scale);
     igTextUnformatted(label ? label : "", NULL);
 }
 
