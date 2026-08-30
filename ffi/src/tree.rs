@@ -978,13 +978,25 @@ impl Tree {
 
     /// Wrap `add` in the node's `:margin`, when it has one.
     fn with_margin(&mut self, props: &Props, ui: &mut Ui, add: impl FnOnce(&mut Self, &mut Ui)) {
-        let margin = props.num("margin", 0.0);
-        if margin <= 0.0 {
+        // `:margin` sets all four sides; `:margin-top` and its siblings say
+        // otherwise for one of them. A row that sits at the bottom of a screen
+        // wants its space above it, not under it, and that is not a thing a
+        // single number can express.
+        let side = |key: &str| {
+            props.num(key, props.num("margin", 0.0)).clamp(0.0, 127.0) as i8
+        };
+        let margin = Margin {
+            left: side("margin-left"),
+            right: side("margin-right"),
+            top: side("margin-top"),
+            bottom: side("margin-bottom"),
+        };
+        if margin == Margin::ZERO {
             add(self, ui);
             return;
         }
         egui::Frame::new()
-            .inner_margin(Margin::same(margin.clamp(0.0, 127.0) as i8))
+            .inner_margin(margin)
             .show(ui, |ui| add(self, ui));
     }
 }
