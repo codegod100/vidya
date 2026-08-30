@@ -19,11 +19,28 @@ static int card_depth;
 static int card_serial;
 static float requested_page_width;
 
-#if defined(__ANDROID__)
-static const float ui_scale = 1.35f;
-#else
-static const float ui_scale = 1.0f;
+/* Density multiplier for every size in the theme. Override at build time with
+ * -DVIDYA_UI_SCALE=<float> when the default is wrong for a device. */
+#ifndef VIDYA_UI_SCALE
+#  if defined(__ANDROID__)
+#    define VIDYA_UI_SCALE 1.35f
+#  else
+#    define VIDYA_UI_SCALE 1.0f
+#  endif
 #endif
+static const float ui_scale = VIDYA_UI_SCALE;
+
+/* Drag-to-scroll gesture state. A page taller than the screen scrolls with the
+ * wheel on its own; touch screens have no wheel, so a press-and-drag anywhere
+ * in the page pans it, and a flick keeps going. Once a drag has travelled far
+ * enough to count as a scroll, clicks are swallowed until the finger lifts —
+ * otherwise every pan would also press whatever it started on. */
+static float scroll_velocity;
+static float drag_travel;
+static int scroll_gesture;
+
+#define VIDYA_SCROLL_SLOP 8.0f
+#define VIDYA_SCROLL_DECAY 0.92f
 
 /* One accent ramp for every widget that paints itself blue: the primary
  * button, a checked checkbox, selected text, the keyboard cursor. */
@@ -485,6 +502,44 @@ void vidya_end_frame(void) {
     EndDrawing();
 }
 
+/* Pan the current window from pointer drags, then coast. Call just inside
+ * igBegin, before any of the page's own widgets. */
+static void drag_scroll(void) {
+    ImGuiIO *io = igGetIO_Nil();
+    if (igGetScrollMaxY() <= 0.0f) {
+        scroll_velocity = 0.0f;
+        drag_travel = 0.0f;
+        scroll_gesture = 0;
+        return;
+    }
+
+    if (io->MouseDown[0]) {
+        int inside = igIsWindowHovered(ImGuiHoveredFlags_ChildWindows |
+                                       ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        float dy = io->MouseDelta.y;
+        if (inside) {
+            drag_travel += dy < 0 ? -dy : dy;
+            if (drag_travel > VIDYA_SCROLL_SLOP * ui_scale) scroll_gesture = 1;
+            if (scroll_gesture && dy != 0.0f) {
+                igSetScrollY_Float(igGetScrollY() - dy);
+                scroll_velocity = dy;
+            }
+        }
+        return;
+    }
+
+    drag_travel = 0.0f;
+    /* Clear a frame late: Dear ImGui reports a button click on release, and
+     * that release is the last frame of the gesture we are swallowing. */
+    if (!io->MouseReleased[0]) scroll_gesture = 0;
+
+    if (scroll_velocity != 0.0f) {
+        igSetScrollY_Float(igGetScrollY() - scroll_velocity);
+        scroll_velocity *= VIDYA_SCROLL_DECAY;
+        if (scroll_velocity < 0.5f && scroll_velocity > -0.5f) scroll_velocity = 0.0f;
+    }
+}
+
 void vidya_page_begin(float max_width) {
     requested_page_width = max_width;
     igSetNextWindowPos((ImVec2_c){0, 0}, ImGuiCond_Always,
@@ -497,6 +552,7 @@ void vidya_page_begin(float max_width) {
         ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoBringToFrontOnFocus;
     igBegin("##vidya-root", NULL, flags);
+    drag_scroll();
     if (max_width > 0 && max_width < GetScreenWidth() - 32) {
         igSetCursorPosX(((float)GetScreenWidth() - max_width) * 0.5f);
         igPushItemWidth(max_width);
@@ -573,7 +629,7 @@ int vidya_button(const char *label, int kind) {
     }
     int clicked = igButton(label ? label : "", (ImVec2_c){0, 0});
     if (pushed) igPopStyleColor(4);
-    return clicked;
+    return scroll_gesture ? 0 : clicked;
 }
 
 int vidya_checkbox(const char *label, int *checked) {
@@ -594,8 +650,10 @@ int vidya_checkbox(const char *label, int *checked) {
 }
 
 int vidya_checkbox_value(const char *label, int checked) {
-    vidya_checkbox(label, &checked);
-    return checked ? 1 : 0;
+    int toggled = checked;
+    vidya_checkbox(label, &toggled);
+    if (scroll_gesture) return checked ? 1 : 0;
+    return toggled ? 1 : 0;
 }
 
 void vidya_status(const char *label, int live) {
