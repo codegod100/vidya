@@ -1,10 +1,12 @@
 /target
 /android-demo/target
 /host/target
+/.jolt
 /jolt/.jolt
 /jolt/imgui.ini
 /raylib/build
 /raylib/build-*
+/raylib/android/build
 /result
 /result-*
 /demo

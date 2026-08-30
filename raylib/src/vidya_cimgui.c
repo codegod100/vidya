@@ -6,6 +6,9 @@
 #include "rlImGui.h"
 
 #include <stdio.h>
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 
 static VidyaMode mode = VIDYA_DARK;
 static ImFont *font_body;
@@ -14,6 +17,12 @@ static int page_open;
 static int card_depth;
 static int card_serial;
 static float requested_page_width;
+
+#if defined(__ANDROID__)
+static const float ui_scale = 1.35f;
+#else
+static const float ui_scale = 1.0f;
+#endif
 
 static ImVec4_c rgba(unsigned int hex) {
     return (ImVec4_c){
@@ -55,7 +64,16 @@ static void load_fonts(void) {
         font_heading = ImFontAtlas_AddFontFromFileTTF(
             io->Fonts, bold_path, 18, NULL, NULL);
     }
-    if (!font_body) font_body = ImFontAtlas_AddFontDefault(io->Fonts, NULL);
+    if (!font_body) {
+#if defined(__ANDROID__)
+        ImFontConfig *config = ImFontConfig_ImFontConfig();
+        config->SizePixels = 16 * ui_scale;
+        font_body = ImFontAtlas_AddFontDefault(io->Fonts, config);
+        ImFontConfig_destroy(config);
+#else
+        font_body = ImFontAtlas_AddFontDefault(io->Fonts, NULL);
+#endif
+    }
     if (!font_heading) font_heading = font_body;
     io->FontDefault = font_body;
 }
@@ -112,6 +130,13 @@ static void apply_style(void) {
 
 int vidya_open(int width, int height, const char *title) {
     if (IsWindowReady()) return 0;
+#if defined(__ANDROID__)
+    /* InitWindow's dimensions are the logical render surface on Android, not a
+     * desktop window request. Keep the physical device's portrait aspect ratio
+     * so raylib does not letterbox the ImGui framebuffer into a short strip. */
+    width = 720;
+    height = 1600;
+#endif
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT |
                    FLAG_MSAA_4X_HINT);
     InitWindow(width, height, title ? title : "Vidya");
@@ -120,6 +145,7 @@ int vidya_open(int width, int height, const char *title) {
     rlImGuiSetLoadFontsCallback(load_fonts);
     rlImGuiSetup(true);
     apply_style();
+    if (ui_scale != 1.0f) ImGuiStyle_ScaleAllSizes(igGetStyle(), ui_scale);
     return 1;
 }
 
@@ -159,6 +185,22 @@ void vidya_end_frame(void) {
     while (card_depth-- > 0) igEndChild();
     if (page_open) igEnd();
     rlImGuiEnd();
+#if defined(__ANDROID__)
+    static int logged_frame;
+    if (!logged_frame) {
+        ImGuiIO *io = igGetIO_Nil();
+        ImDrawData *draw = igGetDrawData();
+        __android_log_print(
+            ANDROID_LOG_INFO, "vidya",
+            "screen=%dx%d display=%.0fx%.0f fb=%.1fx%.1f lists=%d vertices=%d",
+            GetScreenWidth(), GetScreenHeight(),
+            io->DisplaySize.x, io->DisplaySize.y,
+            io->DisplayFramebufferScale.x, io->DisplayFramebufferScale.y,
+            draw ? draw->CmdLists.Size : -1,
+            draw ? draw->TotalVtxCount : -1);
+        logged_frame = 1;
+    }
+#endif
     EndDrawing();
 }
 
@@ -208,7 +250,7 @@ void vidya_gap(float pixels) { igDummy((ImVec2_c){0, pixels}); }
 void vidya_separator(void) { igSeparator(); }
 
 static void heading(const char *text, float scale) {
-    igPushFont(font_heading, 18 * scale);
+    igPushFont(font_heading, 18 * scale * ui_scale);
     igTextUnformatted(text ? text : "", NULL);
     igPopFont();
 }

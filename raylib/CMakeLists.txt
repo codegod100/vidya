@@ -14,6 +14,9 @@ endif()
 
 option(VIDYA_FETCH_RAYLIB "Fetch raylib when it is not installed" OFF)
 option(VIDYA_BUILD_EXAMPLE "Build the Vidya showcase" ON)
+option(VIDYA_BUILD_ANDROID_APP "Build libmain.so for an Android NativeActivity" OFF)
+set(VIDYA_JOLT_BOOT_OBJECT "" CACHE FILEPATH "ARM64 ELF object containing jolt.boot")
+set(VIDYA_CHEZ_ANDROID "" CACHE PATH "Chez tarm64le build root")
 set(VIDYA_BACKEND "cimgui" CACHE STRING "UI backend: cimgui or direct")
 set_property(CACHE VIDYA_BACKEND PROPERTY STRINGS cimgui direct)
 
@@ -62,9 +65,30 @@ if(VIDYA_BACKEND STREQUAL "cimgui")
   )
   FetchContent_MakeAvailable(cimgui rlimgui_source)
 
-  add_library(rlimgui STATIC
-    ${rlimgui_source_SOURCE_DIR}/rlImGui.cpp)
+  set(RLIMGUI_SOURCE "${rlimgui_source_SOURCE_DIR}/rlImGui.cpp")
+  if(ANDROID)
+    # rlImGui treats every non-Emscripten platform as desktop and asks raylib
+    # for a window DPI scale. Android does not implement that API, returning a
+    # zero scale that clips every ImGui draw command. Keep the dependency
+    # immutable and patch a generated build copy to use Android's 1x framebuffer
+    # scale, matching its existing Emscripten policy.
+    file(READ "${RLIMGUI_SOURCE}" RLIMGUI_ANDROID_SOURCE)
+    string(REPLACE
+      "#if defined(__EMSCRIPTEN__)"
+      "#if defined(__EMSCRIPTEN__) || defined(PLATFORM_ANDROID)"
+      RLIMGUI_ANDROID_SOURCE "${RLIMGUI_ANDROID_SOURCE}")
+    set(RLIMGUI_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/rlImGui_android.cpp")
+    file(WRITE "${RLIMGUI_SOURCE}" "${RLIMGUI_ANDROID_SOURCE}")
+  endif()
+  add_library(rlimgui STATIC "${RLIMGUI_SOURCE}")
   target_compile_definitions(rlimgui PRIVATE NO_FONT_AWESOME)
+  # Android NativeActivity windows report fullscreen, but raylib's Android
+  # backend does not implement monitor enumeration or GetWindowScaleDPI.
+  # rlImGui's DRM path uses the actual screen dimensions and a 1x scale, which
+  # is the correct policy for this backend too.
+  if(ANDROID)
+    target_compile_definitions(rlimgui PRIVATE PLATFORM_DRM)
+  endif()
   target_include_directories(rlimgui PUBLIC
     ${rlimgui_source_SOURCE_DIR}
     ${cimgui_SOURCE_DIR}/imgui)
@@ -76,7 +100,11 @@ else()
   message(FATAL_ERROR "VIDYA_BACKEND must be cimgui or direct")
 endif()
 
-add_library(vidya SHARED ${VIDYA_SOURCE})
+if(ANDROID)
+  add_library(vidya STATIC ${VIDYA_SOURCE})
+else()
+  add_library(vidya SHARED ${VIDYA_SOURCE})
+endif()
 add_library(vidya::vidya ALIAS vidya)
 target_include_directories(vidya PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -97,6 +125,34 @@ set_target_properties(vidya PROPERTIES
 if(VIDYA_BUILD_EXAMPLE)
   add_executable(vidya-showcase examples/showcase.c)
   target_link_libraries(vidya-showcase PRIVATE vidya)
+endif()
+
+if(ANDROID AND VIDYA_BUILD_ANDROID_APP)
+  if(NOT VIDYA_JOLT_BOOT_OBJECT OR NOT EXISTS "${VIDYA_JOLT_BOOT_OBJECT}")
+    message(FATAL_ERROR "VIDYA_JOLT_BOOT_OBJECT must name the embedded ARM64 Jolt boot object")
+  endif()
+  if(NOT VIDYA_CHEZ_ANDROID OR
+      NOT EXISTS "${VIDYA_CHEZ_ANDROID}/tarm64le/boot/tarm64le/libkernel.a")
+    message(FATAL_ERROR "VIDYA_CHEZ_ANDROID must name a Chez tarm64le cross build")
+  endif()
+
+  add_library(main SHARED
+    android/jolt_main.c
+    "${VIDYA_JOLT_BOOT_OBJECT}")
+  set_source_files_properties("${VIDYA_JOLT_BOOT_OBJECT}"
+    PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
+  target_include_directories(main PRIVATE
+    "${VIDYA_CHEZ_ANDROID}/boot/tarm64le")
+  target_link_libraries(main PRIVATE
+    vidya
+    "${VIDYA_CHEZ_ANDROID}/tarm64le/boot/tarm64le/libkernel.a"
+    "${VIDYA_CHEZ_ANDROID}/lz4/lib/liblz4.a"
+    android log EGL GLESv2 OpenSLES z dl m)
+  target_link_options(main PRIVATE
+    "-Wl,-u,ANativeActivity_onCreate"
+    "-Wl,--export-dynamic"
+    "-Wl,--no-undefined")
+  set_target_properties(main PROPERTIES OUTPUT_NAME main)
 endif()
 
 include(GNUInstallDirs)

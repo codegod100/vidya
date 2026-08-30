@@ -29,3 +29,10 @@ launch:
 
 shots:
     ./scripts/waydroid-demo.sh shots
+
+# ARM64 NativeActivity APK (cimgui + raylib) for a connected physical device.
+android-native:
+    bash raylib/android/build-apk.sh build
+
+android-native-run:
+    bash raylib/android/build-apk.sh run
