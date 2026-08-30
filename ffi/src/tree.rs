@@ -203,6 +203,22 @@ fn name_colour(name: &str, theme: &Theme) -> Color32 {
 }
 
 impl Tree {
+    /// Whether anything under `id` has `:scroll-here` set this frame.
+    ///
+    /// Walked rather than remembered: the prop is set for the moment of a jump
+    /// and taken off again, so there is nothing to keep, and this runs once
+    /// per scroll area rather than once per node.
+    fn wants_scroll_to(&self, id: u32) -> bool {
+        let Some(node) = self.slot(id) else {
+            return false;
+        };
+        matches!(node.props.get("scroll-here"), Some(Value::Bool(true)))
+            || node
+                .children
+                .iter()
+                .any(|child| self.wants_scroll_to(*child))
+    }
+
     /// The texture for a file, decoding it the first time it is asked for.
     /// A file that will not decode is remembered as such, so a bad path costs
     /// one failed read rather than one per frame.
@@ -673,8 +689,13 @@ impl Tree {
                 // on — would otherwise share one offset, and the list would
                 // come back showing whatever the picture left behind.
                 let area = area.id_salt(("vidya_scroll", id));
-                // A chat wants the newest line, not the oldest.
-                let area = area.stick_to_bottom(props.bool("stick-to-bottom", false));
+                // A chat wants the newest line, not the oldest — except on a
+                // frame where something inside asked to be scrolled to. The
+                // two are the same control pulling opposite ways, and sticking
+                // wins every time it is asked, so a jump to an old message
+                // would land nowhere.
+                let sticks = props.bool("stick-to-bottom", false) && !self.wants_scroll_to(id);
+                let area = area.stick_to_bottom(sticks);
                 // `:scroll-to-bottom` is a number the caller bumps rather than
                 // a flag it sets: a flag would have to be cleared afterwards,
                 // and there is no frame in which the caller could do it. A
