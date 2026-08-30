@@ -38,6 +38,9 @@ VIDYA_API int vidya_should_close(void);
 VIDYA_API void vidya_set_target_fps(int fps);
 VIDYA_API void vidya_set_mode(int mode);
 VIDYA_API int vidya_get_mode(void);
+/* Replace the UI font. Returns 1 on success. A 32px atlas is a good default;
+ * controls scale it down to the semantic type sizes while retaining quality. */
+VIDYA_API int vidya_load_font(const char *path, int atlas_size);
 VIDYA_API void vidya_begin_frame(void);
 VIDYA_API void vidya_end_frame(void);
 

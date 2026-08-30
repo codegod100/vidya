@@ -22,6 +22,7 @@ typedef struct Layout {
 typedef struct Card {
     Layout parent;
     float top;
+    Color parent_fill;
 } Card;
 
 static VidyaMode mode = VIDYA_DARK;
@@ -30,6 +31,10 @@ static Card cards[16];
 static int card_depth;
 static int active_field;
 static int next_id;
+static Font ui_font;
+static int owns_ui_font;
+static Font ui_font_bold;
+static int owns_ui_font_bold;
 
 static const float XS = 4, SM = 6, MD = 12, LG = 18, PAGE = 16;
 static const float CONTROL_H = 34, RADIUS_SM = 6, RADIUS_MD = 9;
@@ -59,6 +64,64 @@ static Palette palette(void) {
     };
 }
 
+static int load_ui_font(const char *path, int atlas_size) {
+    if (!path || !FileExists(path)) return 0;
+    Font loaded = LoadFontEx(path, atlas_size > 0 ? atlas_size : 32, NULL, 0);
+    /* On failure raylib returns its valid default bitmap font, so validity
+     * alone is insufficient to detect an unsupported file (e.g. some variable
+     * OpenType fonts). */
+    if (!IsFontValid(loaded) ||
+        loaded.texture.id == GetFontDefault().texture.id) return 0;
+    SetTextureFilter(loaded.texture, TEXTURE_FILTER_BILINEAR);
+    if (owns_ui_font) UnloadFont(ui_font);
+    ui_font = loaded;
+    owns_ui_font = 1;
+    return 1;
+}
+
+static void load_platform_font(void) {
+    static const char *candidates[] = {
+        /* GNOME/Linux */
+        "/usr/share/fonts/cantarell/Cantarell-VF.otf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-L.ttf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        /* Homebrew Linux and macOS */
+        "/home/linuxbrew/.linuxbrew/share/fonts/dejavu/DejaVuSans.ttf",
+        "/opt/homebrew/share/fonts/dejavu/DejaVuSans.ttf",
+        "/Library/Fonts/Arial Unicode.ttf"
+    };
+    ui_font = GetFontDefault();
+    owns_ui_font = 0;
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        if (load_ui_font(candidates[i], 32)) break;
+    }
+
+    static const char *bold_candidates[] = {
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-M.ttf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+        "/home/linuxbrew/.linuxbrew/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+        "/opt/homebrew/share/fonts/dejavu/DejaVuSans-Bold.ttf"
+    };
+    ui_font_bold = ui_font;
+    owns_ui_font_bold = 0;
+    for (size_t i = 0;
+         i < sizeof(bold_candidates) / sizeof(bold_candidates[0]); i++) {
+        const char *path = bold_candidates[i];
+        if (!FileExists(path)) continue;
+        Font loaded = LoadFontEx(path, 32, NULL, 0);
+        if (!IsFontValid(loaded) ||
+            loaded.texture.id == GetFontDefault().texture.id) continue;
+        SetTextureFilter(loaded.texture, TEXTURE_FILTER_BILINEAR);
+        ui_font_bold = loaded;
+        owns_ui_font_bold = 1;
+        break;
+    }
+}
+
 static Rectangle row(float height) {
     Rectangle r = {layout.x, layout.y, layout.width, height};
     layout.y += height + SM;
@@ -75,24 +138,45 @@ static void rounded(Rectangle r, float radius, Color fill, Color border) {
     DrawRectangleRoundedLinesEx(r, roundness, 8, 1.0f, border);
 }
 
-static void label_at(const char *text, Rectangle r, int size, Color color) {
+static void label_at_font(Font font, const char *text, Rectangle r,
+                          int size, Color color) {
     if (!text) text = "";
-    DrawText(text, (int)r.x, (int)(r.y + (r.height - size) * 0.5f), size, color);
+    Vector2 measured = MeasureTextEx(font, text, (float)size, 0);
+    Vector2 position = {r.x, r.y + (r.height - measured.y) * 0.5f};
+    DrawTextEx(font, text, position, (float)size, 0, color);
+}
+
+static void label_at(const char *text, Rectangle r, int size, Color color) {
+    label_at_font(ui_font, text, r, size, color);
 }
 
 int vidya_open(int width, int height, const char *title) {
     if (IsWindowReady()) return 0;
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     InitWindow(width, height, title ? title : "Vidya");
+    load_platform_font();
     SetExitKey(KEY_NULL);
     return IsWindowReady() ? 1 : 0;
 }
 
-void vidya_close(void) { if (IsWindowReady()) CloseWindow(); }
+void vidya_close(void) {
+    if (owns_ui_font) {
+        UnloadFont(ui_font);
+        owns_ui_font = 0;
+    }
+    if (owns_ui_font_bold) {
+        UnloadFont(ui_font_bold);
+        owns_ui_font_bold = 0;
+    }
+    if (IsWindowReady()) CloseWindow();
+}
 int vidya_should_close(void) { return WindowShouldClose(); }
 void vidya_set_target_fps(int fps) { SetTargetFPS(fps); }
 void vidya_set_mode(int value) { mode = value == VIDYA_LIGHT ? VIDYA_LIGHT : VIDYA_DARK; }
 int vidya_get_mode(void) { return mode; }
+int vidya_load_font(const char *path, int atlas_size) {
+    return load_ui_font(path, atlas_size);
+}
 
 void vidya_begin_frame(void) {
     BeginDrawing();
@@ -114,7 +198,18 @@ void vidya_page_end(void) {}
 
 void vidya_card_begin(void) {
     if (card_depth >= 16) return;
-    cards[card_depth++] = (Card){layout, layout.y};
+    Palette p = palette();
+    Color parent_fill = card_depth > 0 ? p.card_bg : p.window_bg;
+    cards[card_depth++] = (Card){layout, layout.y, parent_fill};
+    /* Paint ahead to the bottom of the view. card_end erases the unused tail
+     * before outlining the final bounds. This gives immediate-mode callers an
+     * opaque surface without requiring them to predict content height. */
+    Rectangle surface = {
+        layout.x, layout.y, layout.width, (float)GetScreenHeight() - layout.y
+    };
+    float roundness = fminf(1.0f, RADIUS_MD * 2.0f /
+                                  fminf(surface.width, surface.height));
+    DrawRectangleRounded(surface, roundness, 8, p.card_bg);
     layout.x += MD;
     layout.y += MD;
     layout.width -= MD * 2;
@@ -125,9 +220,11 @@ void vidya_card_end(void) {
     Card card = cards[--card_depth];
     float bottom = layout.y - SM + MD;
     Rectangle bounds = {card.parent.x, card.top, card.parent.width, bottom - card.top};
-    /* Child drawing has already happened in immediate mode, so only draw the
-     * outline here. Filling now would cover the children. A command-buffered
-     * renderer can add stacked opaque surfaces without changing this ABI. */
+    Rectangle tail = {
+        card.parent.x, bottom, card.parent.width,
+        fmaxf(0, (float)GetScreenHeight() - bottom)
+    };
+    DrawRectangleRec(tail, card.parent_fill);
     float roundness = fminf(1.0f, RADIUS_MD * 2.0f /
                                   fminf(bounds.width, bounds.height));
     DrawRectangleRoundedLinesEx(bounds, roundness, 8, 1.0f,
@@ -143,18 +240,30 @@ void vidya_separator(void) {
     DrawRectangleRec(r, palette().border_soft);
 }
 
-static void text_role(const char *text, int size, Color color, float height) {
-    label_at(text, row(height), size, color);
+static void text_role(Font font, const char *text, int size,
+                      Color color, float height) {
+    label_at_font(font, text, row(height), size, color);
 }
 
-void vidya_title(const char *text) { text_role(text, 20, palette().text, 26); }
-void vidya_title_2(const char *text) { text_role(text, 16, palette().text, 22); }
-void vidya_body(const char *text) { text_role(text, 14, palette().text, 20); }
-void vidya_dim_label(const char *text) { text_role(text, 12, palette().text_secondary, 18); }
+void vidya_title(const char *text) {
+    text_role(ui_font_bold, text, 20, palette().text, 26);
+}
+void vidya_title_2(const char *text) {
+    text_role(ui_font_bold, text, 16, palette().text, 22);
+}
+void vidya_body(const char *text) {
+    text_role(ui_font, text, 14, palette().text, 20);
+}
+void vidya_dim_label(const char *text) {
+    text_role(ui_font, text, 12, palette().text_secondary, 18);
+}
 
 int vidya_button(const char *label, int kind) {
     Palette p = palette();
-    Rectangle r = row(CONTROL_H);
+    Vector2 measured = MeasureTextEx(ui_font, label ? label : "", 14, 0);
+    float width = fminf(layout.width, fmaxf(112, measured.x + MD * 2));
+    Rectangle full_row = row(CONTROL_H);
+    Rectangle r = {full_row.x, full_row.y, width, full_row.height};
     int over = hovered(r);
     int down = over && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     Color fill = down ? p.button_active : (over ? p.button_hover : p.button_bg);
@@ -170,8 +279,7 @@ int vidya_button(const char *label, int kind) {
         border = fill;
     }
     rounded(r, RADIUS_MD, fill, border);
-    int width = MeasureText(label ? label : "", 14);
-    Rectangle tr = {r.x + (r.width - width) / 2, r.y, (float)width, r.height};
+    Rectangle tr = {r.x + (r.width - measured.x) / 2, r.y, measured.x, r.height};
     label_at(label, tr, 14, fg);
     return over && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
 }

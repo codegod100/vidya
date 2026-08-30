@@ -17,6 +17,7 @@
 (ffi/defcfn set-target-fps! "vidya_set_target_fps" [:int] :void)
 (ffi/defcfn set-mode! "vidya_set_mode" [:int] :void)
 (ffi/defcfn get-mode "vidya_get_mode" [] :int)
+(ffi/defcfn raw-load-font "vidya_load_font" [:string :int] :int)
 (ffi/defcfn begin-frame! "vidya_begin_frame" [] :void)
 (ffi/defcfn end-frame! "vidya_end_frame" [] :void)
 (ffi/defcfn raw-page-begin "vidya_page_begin" [:float] :void)
@@ -39,6 +40,11 @@
   ([title] (open! 900 640 title)))
 
 (defn should-close? [] (not (zero? (raw-should-close))))
+(defn load-font!
+  "Load a TTF/OTF UI font and return whether it succeeded."
+  ([path] (load-font! path 32))
+  ([path atlas-size]
+   (not (zero? (raw-load-font path atlas-size)))))
 (defn page-begin!
   ([] (raw-page-begin 0.0))
   ([max-width] (raw-page-begin (float max-width))))

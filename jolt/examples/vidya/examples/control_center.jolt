@@ -94,4 +94,4 @@
 
 (defn -main [& _]
   (ui/set-mode! ui/dark)
-  (ui/run! 720 760 "Vidya Control Center" render))
+  (ui/run! 680 700 "Vidya Control Center" render))
