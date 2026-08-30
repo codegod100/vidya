@@ -558,3 +558,66 @@ pub extern "C" fn vidya_tree_event_text() -> *const c_char {
 pub extern "C" fn vidya_tree_event_num() -> f64 {
     with_tree(0.0, |tree| tree.current().map_or(0.0, |e| e.num))
 }
+
+// ── Clipboard ───────────────────────────────────────────────────────────────
+
+/// Write the picture on the system clipboard to `path` as a PNG, answering 1
+/// when there was one and it was written.
+///
+/// egui carries clipboard *text* into the frame as an event and nothing else,
+/// so a pasted image has to be asked for rather than waited for: a caller
+/// binds this to whatever gesture means paste for it, and reads the file.
+/// PNG because that is what the `:image` node decodes.
+///
+/// Unlike the rest of this ABI it needs no window and no particular thread —
+/// it talks to the platform clipboard, not to egui.
+///
+/// # Safety
+/// `path` is null or a NUL-terminated UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn vidya_clipboard_image_png(path: *const c_char) -> c_int {
+    let path = borrowed_str(path);
+    guard(0, || {
+        if path.is_empty() {
+            return 0;
+        }
+        clipboard_image_png(&path) as c_int
+    })
+}
+
+#[cfg(not(target_os = "android"))]
+fn clipboard_image_png(path: &str) -> bool {
+    let Ok(mut clipboard) = arboard::Clipboard::new() else {
+        return false;
+    };
+    // An empty clipboard, text on it, or a format the platform will not hand
+    // over as pixels: all of them are "no picture to paste" to the caller.
+    let Ok(image) = clipboard.get_image() else {
+        return false;
+    };
+    let Ok(file) = std::fs::File::create(path) else {
+        return false;
+    };
+    let mut encoder = png::Encoder::new(
+        std::io::BufWriter::new(file),
+        image.width as u32,
+        image.height as u32,
+    );
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let written = encoder
+        .write_header()
+        .and_then(|mut writer| writer.write_image_data(&image.bytes))
+        .is_ok();
+    // A half-written file is worse than none: the caller would upload it.
+    if !written {
+        let _ = std::fs::remove_file(path);
+    }
+    written
+}
+
+/// Android has no clipboard of images to read, and arboard no backend for it.
+#[cfg(target_os = "android")]
+fn clipboard_image_png(_path: &str) -> bool {
+    false
+}

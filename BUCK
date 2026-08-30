@@ -47,8 +47,15 @@ rust_library(
         "//third-party/rust:glow",
         "//third-party/rust:glutin",
         "//third-party/rust:glutin-winit",
+        # Encoding a clipboard image on its way to disk.
+        "//third-party/rust:png",
         "//third-party/rust:winit",
-    ],
+    ] + select({
+        "DEFAULT": ["//third-party/rust:arboard"],
+        # No clipboard of images to read there, and arboard has no backend
+        # for it. Mirrors the target-gated dep in ffi/Cargo.toml.
+        "prelude//os:android": [],
+    }),
 )
 
 # Jolt (and the C ABI's other consumers) dlopen `libvidya.so` by name, so give

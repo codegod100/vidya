@@ -32,5 +32,10 @@ glutin = "0.32"
 glutin-winit = "0.5"
 winit = "0.30"
 
+# Reading a pasted picture off the clipboard, which egui does not deliver.
+# Desktop only: arboard has no Android backend.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+arboard = { version = "3", default-features = false, features = ["image-data"] }
+
 [profile.release]
 opt-level = 2

@@ -223,6 +223,10 @@
           ;; one scratch buffer — jolt copies it as it crosses.
           "change"   (when-let [f (:on-change hs)] (f (ffi/event-text)))
           "activate" (when-let [f (:on-activate hs)] (f))
+          ;; Ctrl+V on a clipboard with no text on it. What is on it instead is
+          ;; the caller's to find out — `clipboard-image-png!` is the only
+          ;; question the backend answers about it.
+          "paste-empty" (when-let [f (:on-paste-empty hs)] (f))
           nil))
       (recur))))
 
@@ -237,6 +241,18 @@
       (recur)))
   (forget-dead-handlers!)
   nil)
+
+(defn clipboard-image-png!
+  "Write the picture on the system clipboard to `path` as a PNG. True when
+  there was one; false for an empty clipboard, text on it, an unwritable path,
+  or a platform with no clipboard of images (Android).
+
+  A paste of a picture reaches no handler of its own — the backend delivers
+  clipboard text only — so a caller asks for it, from whatever gesture it means
+  paste by. An `:entry`'s `:on-paste-empty` is that gesture where the reader
+  expects it: a Ctrl+V the field had no text to answer with."
+  [path]
+  (ffi/clipboard-image-png! path))
 
 (defn quit!
   "Stop the running loop and close the window."

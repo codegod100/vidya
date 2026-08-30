@@ -405,24 +405,29 @@ pub fn reaction_chip_sized(
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = (icon_size * 0.25).max(2.0);
                 emoji_icon(ui, theme, emoji, icon_size);
-                // The count keeps its place whether or not there is one to
-                // show. A chip that grew when a second person arrived would
+                // The count keeps its place whether or not there is a number
+                // in it: a chip that grew when a second person arrived would
                 // shuffle every chip beside it along the row, and a row of
-                // reactions is something people aim at.
-                let text_size = theme.type_scale.caption.min(icon_size);
-                // Wide enough for two digits, which is as far as a reaction
-                // count usually goes — so one, nine and ninety-nine are all
-                // the same chip.
-                let (rect, _) =
-                    ui.allocate_exact_size(Vec2::new(text_size * 1.2, icon_size), Sense::hover());
-                if count > 1 {
-                    ui.painter().text(
-                        rect.center(),
-                        Align2::CENTER_CENTER,
-                        count.to_string(),
-                        FontId::proportional(text_size),
-                        p.text,
-                    );
+                // reactions is something people aim at. Two digits wide, which
+                // is as far as a count usually goes, so one, nine and
+                // ninety-nine are all the same chip.
+                //
+                // A chip counting nobody is not a reaction but an offer of one
+                // — what a picker is made of — and there the slot would only
+                // hang the glyph off to one side of its own pill.
+                if count > 0 {
+                    let text_size = theme.type_scale.caption.min(icon_size);
+                    let (rect, _) = ui
+                        .allocate_exact_size(Vec2::new(text_size * 1.2, icon_size), Sense::hover());
+                    if count > 1 {
+                        ui.painter().text(
+                            rect.center(),
+                            Align2::CENTER_CENTER,
+                            count.to_string(),
+                            FontId::proportional(text_size),
+                            p.text,
+                        );
+                    }
                 }
             });
         });

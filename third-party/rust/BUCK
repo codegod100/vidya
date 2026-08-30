@@ -457,6 +457,12 @@ cargo.rust_library(
     visibility = [],
 )
 
+alias(
+    name = "arboard",
+    actual = ":arboard-3",
+    visibility = ["PUBLIC"],
+)
+
 cargo.rust_library(
     name = "arboard-3",
     srcs = [

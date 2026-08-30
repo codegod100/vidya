@@ -107,7 +107,7 @@ numbers become labels, `nil` children are skipped, seqs are spliced.
 | `:window` | many | the root; you rarely name it |
 | `:box` / `:hbox` / `:vbox` | many | `:orientation :horizontal\|:vertical`, implied by the tag |
 | `:page` | many | scrolling column with page padding; `:max-width` centres it |
-| `:scroll` | many | `:orientation :vertical\|:horizontal\|:both` |
+| `:scroll` | many | `:orientation :vertical\|:horizontal\|:both`, `:scroll-key` |
 | `:card` | many | Vidya's raised surface |
 | `:frame` | many | a card with a `:label` as its heading |
 
@@ -141,6 +141,9 @@ numbers become labels, `nil` children are skipped, seqs are spliced.
 - `:on-toggled` — checkbutton clicked. No args.
 - `:on-change` — entry text changed. Receives the new text.
 - `:on-activate` — Enter pressed in an entry. No args.
+- `:on-paste-empty` — Ctrl+V in an entry with no text on the clipboard, which
+  is what a copied picture looks like from there. No args; ask
+  `clipboard-image-png!` what is actually on it.
 
 As in the other backends, a handler owns the state: `:on-toggled` flips the cell
 the component reads, and `:active` comes back down as a prop. A control that

@@ -20,6 +20,12 @@ winit = "0.30"
 png = "0.17"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
+# Reading a pasted picture off the system clipboard. egui delivers no
+# clipboard-image event, so the ABI reads it directly. Desktop only: arboard
+# has no Android backend, and neither has the platform a clipboard of images.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+arboard = { version = "3", default-features = false, features = ["image-data"] }
+
 # Android needs winit's NativeActivity glue (and the android-activity crate
 # behind it). Keep it target-gated: enabling it unconditionally would unify the
 # feature into the desktop build too.

@@ -1681,6 +1681,7 @@ dependencies = [
 name = "rust-third-party"
 version = "0.0.0"
 dependencies = [
+ "arboard",
  "egui",
  "egui-winit",
  "egui_glow",

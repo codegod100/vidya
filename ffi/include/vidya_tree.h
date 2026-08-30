@@ -119,6 +119,19 @@ VIDYA_API const char *vidya_tree_event_name(void);
 VIDYA_API const char *vidya_tree_event_text(void);
 VIDYA_API double vidya_tree_event_num(void);
 
+/* Clipboard
+ *
+ * Write the picture on the system clipboard to `path` as a PNG; returns 1 when
+ * there was one and it was written, 0 otherwise (an empty clipboard, text on
+ * it, an unwritable path, or a platform with no image clipboard at all).
+ *
+ * A pasted image arrives through no event — egui carries only clipboard text
+ * into a frame — so this is asked rather than waited for: bind it to whatever
+ * gesture means paste, and read the file it names. Needs no window, and unlike
+ * the rest of this ABI is not tied to the window's thread.
+ */
+VIDYA_API int vidya_clipboard_image_png(const char *path);
+
 #ifdef __cplusplus
 }
 #endif

@@ -628,7 +628,16 @@ impl Tree {
                             });
                         }
                     } else {
-                        ui.with_layout(Layout::top_down(Align::Min), |ui| {
+                        // `:align :center` puts a column's children on the
+                        // middle of the width rather than against its left
+                        // edge — what a picture on a screen of its own wants,
+                        // and nothing a column of text ever does.
+                        let cross = if props.str("align") == "center" {
+                            Align::Center
+                        } else {
+                            Align::Min
+                        };
+                        ui.with_layout(Layout::top_down(cross), |ui| {
                             ui.spacing_mut().item_spacing = axis;
                             tree.paint_children(id, ui, theme);
                         });
@@ -710,7 +719,22 @@ impl Tree {
                 // message list and the picture that replaces the screen it is
                 // on — would otherwise share one offset, and the list would
                 // come back showing whatever the picture left behind.
-                let area = area.id_salt(("vidya_scroll", id));
+                //
+                // `:scroll-key` names an area that outlives its node instead.
+                // A node id is only as durable as the node: a list unmounted
+                // while another screen is up comes back as a new node, and a
+                // position keyed by that is a position thrown away. A caller
+                // that means "this same list again" says so with a name, and
+                // the reader returns to the line they left.
+                let key = {
+                    let name = props.str("scroll-key");
+                    if name.is_empty() {
+                        Id::new(("vidya_scroll", id))
+                    } else {
+                        Id::new(("vidya_scroll_key", name))
+                    }
+                };
+                let area = area.id_salt(key);
                 // A chat wants the newest line, not the oldest — except on a
                 // frame where something inside asked to be scrolled to. The
                 // two are the same control pulling opposite ways, and sticking
@@ -722,7 +746,7 @@ impl Tree {
                 // a flag it sets: a flag would have to be cleared afterwards,
                 // and there is no frame in which the caller could do it. A
                 // value it has not seen before means "now".
-                let jump_key = Id::new(("vidya_scroll_jump", id));
+                let jump_key = key.with("jump");
                 let jump = props.num("scroll-to-bottom", 0.0);
                 let jumped = ui.ctx().data(|d| d.get_temp::<f64>(jump_key));
                 let jump_now = jump > 0.0 && jumped != Some(jump);
@@ -732,7 +756,7 @@ impl Tree {
                 // content can never reach: the area painted nothing and stayed
                 // that way. Not `scroll_to_rect` either, which a scroll area
                 // that has been scrolled away from ignores here.
-                let end_offset_key = Id::new(("vidya_scroll_end_offset", id));
+                let end_offset_key = key.with("end_offset");
                 let area = if jump_now {
                     ui.ctx().data_mut(|d| d.insert_temp(jump_key, jump));
                     let end = ui
@@ -773,8 +797,8 @@ impl Tree {
                 // the content faster than the offset follows it, and reporting
                 // that honestly would blink "scrolled away" whenever a channel
                 // is busy.
-                let end_key = Id::new(("vidya_scroll_at_end", id));
-                let away_key = Id::new(("vidya_scroll_away_frames", id));
+                let end_key = key.with("at_end");
+                let away_key = key.with("away_frames");
                 let away_frames = ui.ctx().data(|d| d.get_temp::<u32>(away_key)).unwrap_or(0);
                 let away_frames = if at_end { 0 } else { away_frames.saturating_add(1) };
                 ui.ctx().data_mut(|d| d.insert_temp(away_key, away_frames));
@@ -885,6 +909,38 @@ impl Tree {
                 if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     self.emit(id, "activate", String::new(), 0.0);
                 }
+                // A paste of something that is not text. egui turns Ctrl+V
+                // into a `Paste` event carrying the clipboard's text, and a
+                // clipboard holding a picture has none — so the keystroke
+                // arrives as a key press with no paste behind it, and the
+                // field would otherwise swallow it. Reported instead, for a
+                // caller that has somewhere to put a picture; one that has not
+                // ignores it and the keystroke stays as inert as it was.
+                //
+                // The clipboard is not read here: whether there is a picture
+                // on it is answered by `vidya_clipboard_image_png`, and asking
+                // twice would copy every pasted image for nothing.
+                if response.has_focus() {
+                    let paste_without_text = ui.input(|i| {
+                        i.events.iter().any(|e| {
+                            matches!(
+                                e,
+                                egui::Event::Key {
+                                    key: egui::Key::V,
+                                    pressed: true,
+                                    modifiers,
+                                    ..
+                                } if modifiers.command
+                            )
+                        }) && !i
+                            .events
+                            .iter()
+                            .any(|e| matches!(e, egui::Event::Paste(_)))
+                    });
+                    if paste_without_text {
+                        self.emit(id, "paste-empty", String::new(), 0.0);
+                    }
+                }
             }
 
             Tag::Separator => crate::ui::separator(ui),
@@ -983,7 +1039,15 @@ impl Tree {
                 if path.is_empty() {
                     return;
                 }
-                let max_height = props.num("max-height", 240.0) as f32;
+                // `:fit-height` is the height the picture has been given
+                // rather than one the caller names: a picture on a screen of
+                // its own should fill the window, and how tall the window is
+                // this frame is something only this side knows.
+                let max_height = if props.bool("fit-height", false) {
+                    ui.available_height()
+                } else {
+                    props.num("max-height", 240.0) as f32
+                };
                 let max_width = props.num("max-width", 0.0) as f32;
                 let Some(texture) = self.texture(ui, &path) else {
                     // A file that will not decode is not worth a broken-image

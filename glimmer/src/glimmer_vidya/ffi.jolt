@@ -59,6 +59,11 @@
 (ffi/defcfn event-text "vidya_tree_event_text" [] :string)
 (ffi/defcfn event-num "vidya_tree_event_num" [] :double)
 
+;; --- the clipboard -----------------------------------------------------------
+;; Not an event: egui carries clipboard text into a frame and nothing else, so a
+;; pasted picture is asked for rather than waited for.
+(ffi/defcfn raw-clipboard-image-png "vidya_clipboard_image_png" [:string] :int)
+
 ;; --- the int/bool seam -------------------------------------------------------
 ;; C has no booleans; every predicate here crosses as 0 or 1. Converting at the
 ;; binding rather than at each call site keeps the rest of the backend written
@@ -77,6 +82,10 @@
 (defn node-set-bool! [node key value] (raw-node-set-bool node key (if value 1 0)))
 (defn node-get-bool [node key] (not (zero? (raw-node-get-bool node key))))
 (defn node-append! [parent child] (not (zero? (raw-node-append parent child))))
+(defn clipboard-image-png!
+  "Write the clipboard's picture to `path` as a PNG; true when there was one."
+  [path]
+  (not (zero? (raw-clipboard-image-png path))))
 (defn node-insert-after! [parent child sibling]
   (not (zero? (raw-node-insert-after parent child sibling))))
 (defn node-replace! [parent old new] (not (zero? (raw-node-replace parent old new))))

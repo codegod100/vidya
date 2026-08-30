@@ -2145,6 +2145,7 @@ dependencies = [
 name = "vidya-ffi"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "egui",
  "egui-winit",
  "egui_glow",
