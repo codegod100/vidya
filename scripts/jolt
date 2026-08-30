@@ -1,0 +1,55 @@
+#!/usr/bin/env dotslash
+
+{
+  "name": "jolt",
+  "platforms": {
+    "linux-x86_64": {
+      "size": 13468217,
+      "hash": "sha256",
+      "digest": "a6256db62d14462d9b9169eb28a7050bb6a060b973f30857673955b1a4019e6d",
+      "format": "tar.gz",
+      "path": "jolt-v0.7.28-x86_64-linux/jolt",
+      "providers": [
+        {
+          "url": "https://github.com/jolt-lang/jolt/releases/download/v0.7.28/jolt-v0.7.28-x86_64-linux.tar.gz"
+        }
+      ]
+    },
+    "macos-x86_64": {
+      "size": 13577677,
+      "hash": "sha256",
+      "digest": "7d31d240216ba945d3dfb5f2b3622b548a97b904f80d0a3a4c6edd10760e0f13",
+      "format": "tar.gz",
+      "path": "jolt-v0.7.28-x86_64-macos/jolt",
+      "providers": [
+        {
+          "url": "https://github.com/jolt-lang/jolt/releases/download/v0.7.28/jolt-v0.7.28-x86_64-macos.tar.gz"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 12785868,
+      "hash": "sha256",
+      "digest": "bfa324c1d17ae4d7fcf8d3ffc1b60014d318c8131d7452a605b6b83f81568517",
+      "format": "tar.gz",
+      "path": "jolt-v0.7.28-aarch64-macos/jolt",
+      "providers": [
+        {
+          "url": "https://github.com/jolt-lang/jolt/releases/download/v0.7.28/jolt-v0.7.28-aarch64-macos.tar.gz"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 14124057,
+      "hash": "sha256",
+      "digest": "8749d9e05c0a048ada1a003168b622fcc3428ecf1ffa1e229493b8d91a25b704",
+      "format": "zip",
+      "path": "jolt-v0.7.28-x86_64-windows/jolt.exe",
+      "providers": [
+        {
+          "url": "https://github.com/jolt-lang/jolt/releases/download/v0.7.28/jolt-v0.7.28-x86_64-windows.zip"
+        }
+      ]
+    }
+  }
+}

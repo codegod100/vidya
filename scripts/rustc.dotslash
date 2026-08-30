@@ -1,0 +1,55 @@
+#!/usr/bin/env dotslash
+
+{
+  "name": "rustc",
+  "platforms": {
+    "linux-x86_64": {
+      "size": 381691823,
+      "hash": "sha256",
+      "digest": "aa30409afa67bd1ada244cefd82c7980e6a65bc113bb978e934b2413c75e3900",
+      "format": "tar.gz",
+      "path": "rust-1.98.0-x86_64-unknown-linux-gnu/rustc/bin/rustc",
+      "providers": [
+        {
+          "url": "https://static.rust-lang.org/dist/2026-08-20/rust-1.98.0-x86_64-unknown-linux-gnu.tar.gz"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 333434930,
+      "hash": "sha256",
+      "digest": "5fbb4282403046d52a4672765c6761a809bf9f33e699b17e6eb7a93ab7770cc3",
+      "format": "tar.gz",
+      "path": "rust-1.98.0-aarch64-unknown-linux-gnu/rustc/bin/rustc",
+      "providers": [
+        {
+          "url": "https://static.rust-lang.org/dist/2026-08-20/rust-1.98.0-aarch64-unknown-linux-gnu.tar.gz"
+        }
+      ]
+    },
+    "macos-x86_64": {
+      "size": 229287977,
+      "hash": "sha256",
+      "digest": "66f4e2e17275753deaba8437380de21072b56b5a083cf954bacb6376df0834fc",
+      "format": "tar.gz",
+      "path": "rust-1.98.0-x86_64-apple-darwin/rustc/bin/rustc",
+      "providers": [
+        {
+          "url": "https://static.rust-lang.org/dist/2026-08-20/rust-1.98.0-x86_64-apple-darwin.tar.gz"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 296260138,
+      "hash": "sha256",
+      "digest": "026ec75bec81fb8c10b11df98f1336ee39f4bc11e04d6745dffe9fca81e5c0b5",
+      "format": "tar.gz",
+      "path": "rust-1.98.0-aarch64-apple-darwin/rustc/bin/rustc",
+      "providers": [
+        {
+          "url": "https://static.rust-lang.org/dist/2026-08-20/rust-1.98.0-aarch64-apple-darwin.tar.gz"
+        }
+      ]
+    }
+  }
+}

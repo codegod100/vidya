@@ -1,0 +1,17 @@
+#!/bin/sh
+# rustc from a pinned upstream tarball (scripts/rustc.dotslash).
+#
+# The Rust dist tarball keeps its components in sibling directories, so the
+# compiler's default sysroot (rustc/) holds no libstd — it lives under
+# rust-std-<triple>/. Point --sysroot at that sibling; the compiler's own
+# codegen libraries are still found via rpath, relative to the binary.
+set -e
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exe=$(dotslash -- fetch "$dir/rustc.dotslash")
+root=$(dirname -- "$(dirname -- "$(dirname -- "$exe")")")
+set -- "$@"
+for std in "$root"/rust-std-*/; do
+  exec "$exe" --sysroot "${std%/}" "$@"
+done
+echo "scripts/rustc: no rust-std component under $root" >&2
+exit 1
