@@ -23,6 +23,35 @@ command -v "$JOLT" >/dev/null || {
   exit 1
 }
 
+# The boot image is a pure function of the Scheme sources, the module name, the
+# flat-split flag and Chez's own boot files — all static. Hash them, and skip
+# the whole thing when the stamp still matches: a Rust-only APK rebuild has no
+# reason to spend fifteen single-threaded seconds recompiling Scheme.
+#
+# The flag is part of the stamp on purpose. JOLT_NO_FLAT_SPLIT changes the shape
+# of what `jolt build` emits, so an app.build/ left by an ordinary build is not
+# reusable here; a stamp miss wipes the tree below, which is what the
+# unconditional `rm -rf` used to be defending against.
+STAMP="$OUT/jolt.boot.stamp"
+stamp_now() {
+  {
+    printf '%s\n' "$MODULE" "JOLT_NO_FLAT_SPLIT=1"
+    "$JOLT" --version 2>/dev/null || true
+    find "$ROOT/jolt/src" "$ROOT/jolt/examples" -type f \
+      \( -name '*.jolt' -o -name '*.edn' \) -print0 | sort -z | xargs -0 sha256sum
+    sha256sum "$TARGET_BOOT/petite.boot" "$TARGET_BOOT/scheme.boot" "$XPATCH"
+  } | sha256sum | cut -d' ' -f1
+}
+
+WANT="$(stamp_now)"
+if [[ -f "$OUT/jolt.boot" && -f "$OUT/scheme.h" && -f "$STAMP" ]] &&
+   [[ "$(<"$STAMP")" == "$WANT" ]]; then
+  echo "jolt boot image up to date" >&2
+  exit 0
+fi
+
+rm -f "$STAMP"
+rm -rf "$OUT/project" "$OUT/cross"
 mkdir -p "$OUT/project" "$OUT/cross"
 cat > "$OUT/project/deps.edn" <<EOF
 {:paths ["$ROOT/jolt/src" "$ROOT/jolt/examples"]}
@@ -30,7 +59,6 @@ EOF
 
 (
   cd "$OUT/project"
-  rm -rf app app.build
   JOLT_NO_FLAT_SPLIT=1 "$JOLT" build \
     -m "$MODULE" -o app
 )
@@ -51,3 +79,6 @@ SCHEMEHEAPDIRS="$CHEZ_ANDROID/ta6le/boot/ta6le" \
   "$HOST_SCHEME" --script "$OUT/cross/compile.ss"
 
 cp "$TARGET_BOOT/scheme.h" "$OUT/scheme.h"
+
+# Last, so an interrupted build leaves no stamp and the next run redoes it.
+printf '%s\n' "$WANT" > "$STAMP"
