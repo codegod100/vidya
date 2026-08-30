@@ -8,10 +8,18 @@
 set -e
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exe=$(dotslash -- fetch "$dir/rustc.dotslash")
+
+# Callers that set their own sysroot win — buck2's rustc_cfg action passes an
+# empty --sysroot, and rustc rejects the option being given twice.
+for arg in "$@"; do
+    case $arg in
+        --sysroot|--sysroot=*) exec "$exe" "$@" ;;
+    esac
+done
+
 root=$(dirname -- "$(dirname -- "$(dirname -- "$exe")")")
-set -- "$@"
 for std in "$root"/rust-std-*/; do
-  exec "$exe" --sysroot "${std%/}" "$@"
+    exec "$exe" --sysroot "${std%/}" "$@"
 done
 echo "scripts/rustc: no rust-std component under $root" >&2
 exit 1
