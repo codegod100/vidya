@@ -541,11 +541,20 @@ impl Tree {
             return;
         }
         let width = requested.min(ui.available_width().max(1.0));
-        ui.allocate_ui_with_layout(Vec2::new(width, 0.0), Layout::top_down(Align::Min), |ui| {
-            ui.set_min_width(width);
-            ui.set_max_width(width);
-            add(self, ui);
-        });
+        // The height is the row's, not zero: a region allocated with no height
+        // leaves the row measuring nothing at the moment the next widget is
+        // placed, so a button beside a text field lands at the row's top edge
+        // instead of beside it.
+        let height = ui.available_height().max(0.0);
+        ui.allocate_ui_with_layout(
+            Vec2::new(width, height),
+            Layout::top_down(Align::Min),
+            |ui| {
+                ui.set_min_width(width);
+                ui.set_max_width(width);
+                add(self, ui);
+            },
+        );
     }
 
     fn paint_tag(&mut self, id: u32, tag: &Tag, props: &Props, ui: &mut Ui, theme: &Theme) {
