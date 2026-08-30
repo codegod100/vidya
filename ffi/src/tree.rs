@@ -552,9 +552,15 @@ impl Tree {
             }
         });
         if scroll_here {
+            // Horizontally the rect is the visible width, not the node's own:
+            // a rect wider than the viewport is off-screen sideways as far as
+            // egui is concerned, so it scrolls across to centre it and the
+            // reader lands on a message with its left edge cut off. Already
+            // visible on that axis means only the vertical scroll happens.
+            let clip = ui.clip_rect();
             let rect = egui::Rect::from_min_max(
-                egui::pos2(ui.max_rect().left(), before),
-                egui::pos2(ui.max_rect().right(), ui.cursor().top()),
+                egui::pos2(clip.left(), before),
+                egui::pos2(clip.right(), ui.cursor().top()),
             );
             ui.scroll_to_rect(rect, Some(Align::Center));
         }
