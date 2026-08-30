@@ -67,6 +67,7 @@ pub enum Tag {
     Spinner,
     Image,
     Avatar,
+    Reaction,
     Status,
     Unknown,
 }
@@ -96,6 +97,7 @@ impl Tag {
             "spinner" => Self::Spinner,
             "image" => Self::Image,
             "avatar" => Self::Avatar,
+            "reaction" => Self::Reaction,
             "status" => Self::Status,
             _ => Self::Unknown,
         }
@@ -125,6 +127,7 @@ impl Tag {
             Self::Spinner => "spinner",
             Self::Image => "image",
             Self::Avatar => "avatar",
+            Self::Reaction => "reaction",
             Self::Status => "status",
             Self::Unknown => "",
         }
@@ -939,6 +942,26 @@ impl Tree {
                 }
                 if response.clicked() {
                     self.emit(id, "click", label, 0.0);
+                }
+            }
+
+            // A reaction chip: the emoji drawn from the Twemoji pack rather
+            // than set as text, so it is the colour picture people expect and
+            // not a monochrome glyph — or, where the font has no glyph at all,
+            // tofu. `:count` rides beside it once more than one person is on
+            // it, and `:mine` is what marks the ones you put there yourself.
+            Tag::Reaction => {
+                let emoji = props.str("emoji").to_owned();
+                let emoji = if emoji.is_empty() {
+                    props.label().to_owned()
+                } else {
+                    emoji
+                };
+                let count = props.num("count", 0.0).max(0.0) as usize;
+                let mine = props.bool("mine", false);
+                let response = vidya_core::reaction_chip(ui, theme, &emoji, count, mine);
+                if response.clicked() {
+                    self.emit(id, "click", emoji, count as f64);
                 }
             }
 

@@ -389,7 +389,15 @@ pub fn reaction_chip(
                 }
             });
         });
-    inner.response
+    // A frame's own response only senses hover, so a chip built from one is
+    // unclickable however it looks — and a reaction chip is a button: clicking
+    // it is how a reaction is put on or taken off. `interact` is what gives the
+    // rect the frame occupies a click to report.
+    let response = inner.response.interact(Sense::click());
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response
 }
 
 // ── texture cache ───────────────────────────────────────────────────────────
@@ -473,6 +481,22 @@ mod tests {
         // ZWJ sequence keeps fe0f when present in input
         let technologist = "👨\u{200D}💻";
         assert_eq!(twemoji_key(technologist), "1f468-200d-1f4bb");
+    }
+
+    /// A chip nobody can click is a picture of a button. The frame it is built
+    /// from only senses hover on its own, so this is the regression that
+    /// matters: reacting is a click on this widget.
+    #[test]
+    fn chip_senses_clicks() {
+        let theme = Theme::dark();
+        let ctx = egui::Context::default();
+        let mut sense = Sense::hover();
+        let _ = ctx.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                sense = reaction_chip(ui, &theme, "\u{1f44d}", 2, false).sense;
+            });
+        });
+        assert!(sense.senses_click(), "reaction chip does not sense clicks");
     }
 
     #[test]
