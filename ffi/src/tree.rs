@@ -704,9 +704,20 @@ impl Tree {
                 let jump = props.num("scroll-to-bottom", 0.0);
                 let jumped = ui.ctx().data(|d| d.get_temp::<f64>(jump_key));
                 let jump_now = jump > 0.0 && jumped != Some(jump);
+                // The end is last frame's own maximum offset, kept for exactly
+                // this. Not f32::MAX — egui subtracts the viewport from what it
+                // is given, and MAX minus anything is still MAX, an offset the
+                // content can never reach: the area painted nothing and stayed
+                // that way. Not `scroll_to_rect` either, which a scroll area
+                // that has been scrolled away from ignores here.
+                let end_offset_key = Id::new(("vidya_scroll_end_offset", id));
                 let area = if jump_now {
                     ui.ctx().data_mut(|d| d.insert_temp(jump_key, jump));
-                    area.vertical_scroll_offset(f32::MAX)
+                    let end = ui
+                        .ctx()
+                        .data(|d| d.get_temp::<f32>(end_offset_key))
+                        .unwrap_or(0.0);
+                    area.vertical_scroll_offset(end)
                 } else {
                     area
                 };
@@ -716,6 +727,12 @@ impl Tree {
                 let output = area.auto_shrink([false, false]).show(ui, |ui| {
                     ui.set_max_width(viewport_width);
                     self.paint_children(id, ui, theme);
+                    // The end asked for by scrolling to it, not by setting an
+                    // offset of f32::MAX: egui subtracts the viewport from
+                    // whatever it is given, and MAX minus anything is still
+                    // MAX — an offset the content can never reach, which left
+                    // the area painting nothing at all.
+
                 });
 
                 // Say when the view leaves the end and when it comes back, so
@@ -725,8 +742,10 @@ impl Tree {
                 // Within a line of the end counts as the end, and content
                 // shorter than the viewport is always at it.
                 let max_offset = (output.content_size.y - output.inner_rect.height()).max(0.0);
+                // What `:scroll-to-bottom` will aim at next time it is asked.
+                ui.ctx()
+                    .data_mut(|d| d.insert_temp(end_offset_key, max_offset));
                 let at_end = output.state.offset.y >= max_offset - 24.0;
-
                 // Reaching the end is reported at once; leaving it has to hold
                 // for a few frames first. A burst of arriving messages grows
                 // the content faster than the offset follows it, and reporting
