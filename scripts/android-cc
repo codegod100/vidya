@@ -1,0 +1,19 @@
+#!/bin/sh
+# Link Android objects with the NDK's clang driver.
+#
+# Unlike the desktop link (scripts/zcc), this one is not self-contained: bionic
+# and the Android platform stubs come from the NDK, so ANDROID_NDK_HOME has to
+# point at an installed r27+ NDK. API 28 matches android-demo's min_sdk_version.
+set -e
+ndk=${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-$HOME/.local/share/android-ndk-r29}}
+api=${VIDYA_ANDROID_API:-28}
+target=${VIDYA_ANDROID_TARGET:-aarch64-linux-android}
+
+for host in linux-x86_64 darwin-x86_64; do
+    cc=$ndk/toolchains/llvm/prebuilt/$host/bin/$target$api-clang
+    [ -x "$cc" ] && exec "$cc" "$@"
+done
+
+echo "scripts/android-cc: no $target$api-clang under $ndk" >&2
+echo "  set ANDROID_NDK_HOME to an installed NDK" >&2
+exit 1

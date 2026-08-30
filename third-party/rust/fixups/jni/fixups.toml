@@ -11,3 +11,7 @@ extra_srcs = [
     "docs/macros/jni_str.md",
     "docs/macros/native_method.md",
 ]
+
+# Run the crate build script (emits cfgs / OUT_DIR sources).
+[buildscript]
+run = true

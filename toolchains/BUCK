@@ -8,12 +8,19 @@ load("@prelude//toolchains:rust.bzl", "system_rust_toolchain")
 # The prelude's system toolchains resolve their tools through PATH, so buck2
 # must be invoked with scripts/ prepended — see the `buck` recipe in justfile.
 
+# zig cc carries its own glibc sysroot, but it has no bionic, so Android links
+# go through the NDK's clang driver instead (scripts/android-cc).
+_CC = select({
+    "DEFAULT": "scripts/zcc",
+    "prelude//os:android": "scripts/android-cc",
+})
+
 system_cxx_toolchain(
     name = "cxx",
-    compiler = "scripts/zcc",
+    compiler = _CC,
     compiler_type = "clang",
-    cxx_compiler = "scripts/zcc",
-    linker = "scripts/zcc",
+    cxx_compiler = _CC,
+    linker = _CC,
     visibility = ["PUBLIC"],
 )
 
@@ -27,9 +34,35 @@ system_python_bootstrap_toolchain(
     visibility = ["PUBLIC"],
 )
 
+# The prelude's default triple table has no Android row, so name it here. The
+# matching libstd is a second pinned tarball, stitched into one sysroot by
+# scripts/rustc — see the cross-compilation note there.
 system_rust_toolchain(
     name = "rust",
     default_edition = "2021",
-    rustc_flags = ["-Clinker=scripts/zcc"],
+    # Pipelined builds compile each crate against its dependencies' `-Zno-codegen`
+    # metadata rather than their rlibs. On the Android graph the two disagree for
+    # android-activity and the final link cannot load winit, so build real rlibs
+    # there. The desktop graph pipelines fine and keeps the parallelism.
+    nightly_features = select({
+        "DEFAULT": True,
+        "prelude//os:android": False,
+    }),
+    rustc_flags = select({
+        "DEFAULT": ["-Clinker=scripts/zcc"],
+        "prelude//os:android": ["-Clinker=scripts/android-cc"],
+    }),
+    rustc_target_triple = select({
+        "DEFAULT": "x86_64-unknown-linux-gnu",
+        "prelude//os:android": "aarch64-linux-android",
+        "prelude//os:linux": select({
+            "prelude//cpu:arm64": "aarch64-unknown-linux-gnu",
+            "prelude//cpu:x86_64": "x86_64-unknown-linux-gnu",
+        }),
+        "prelude//os:macos": select({
+            "prelude//cpu:arm64": "aarch64-apple-darwin",
+            "prelude//cpu:x86_64": "x86_64-apple-darwin",
+        }),
+    }),
     visibility = ["PUBLIC"],
 )

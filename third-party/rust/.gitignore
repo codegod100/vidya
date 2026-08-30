@@ -1,0 +1,6 @@
+# The generated vendor tree is ignored by the repo-root .gitignore, and git does
+# not descend into an excluded directory to honour these — they exist for
+# reindeer, which skips gitignored paths when it globs crate sources and would
+# otherwise find no `extra_srcs` at all. Its matchers apply root-first, so the
+# un-ignore here is the verdict buckify sees.
+!/vendor/**

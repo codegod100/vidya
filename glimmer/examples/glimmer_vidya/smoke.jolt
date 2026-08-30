@@ -6,7 +6,7 @@
   its own. `VIDYA_CAPTURE=<path>` writes a frame out as a PPM, which is how a
   rendering backend gets verified where nobody can look at the screen:
 
-    VIDYA_CAPTURE=/tmp/frame.ppm LD_LIBRARY_PATH=../ffi/target/release jolt smoke"
+    VIDYA_CAPTURE=/tmp/frame.ppm LD_LIBRARY_PATH=../build jolt smoke"
   (:require [glimmer.ratom :as r :refer [atom]]
             [glimmer.core :as ui]
             [glimmer-vidya.core :as vidya]))

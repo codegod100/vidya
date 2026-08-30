@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "DEFAULT_REINDEER_PLATFORMS", "set_reindeer_platforms")
+
+# The `platform = {...}` dicts reindeer writes into BUCK are indexed by its own
+# platform names, so buck2's configuration has to be mapped onto them. Only the
+# Android row is ours; the desktop rows are the prelude's defaults.
+set_reindeer_platforms(
+    select({
+        "DEFAULT": DEFAULT_REINDEER_PLATFORMS,
+        "prelude//os:android": "android-arm64",
+    }),
+)

@@ -19,3 +19,9 @@ glutin-winit = "0.5"
 winit = "0.30"
 png = "0.17"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+
+# Android needs winit's NativeActivity glue (and the android-activity crate
+# behind it). Keep it target-gated: enabling it unconditionally would unify the
+# feature into the desktop build too.
+[target.'cfg(target_os = "android")'.dependencies]
+winit = { version = "0.30", features = ["android-native-activity"] }

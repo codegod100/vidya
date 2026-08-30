@@ -15,7 +15,12 @@ rust_library(
         "//third-party/rust:egui",
         "//third-party/rust:png",
         "//third-party/rust:zip",
-    ],
+    ] + select({
+        "DEFAULT": [],
+        # `sync_system_chrome_from_android` reads insets off the
+        # NativeActivity handle. Mirrors the target-gated dep in Cargo.toml.
+        "prelude//os:android": ["//third-party/rust:winit"],
+    }),
 )
 
 # The C ABI Jolt loads: libvidya.so, matching raylib/'s output name so the
@@ -48,5 +53,22 @@ genrule(
     name = "libvidya",
     out = "libvidya.so",
     cmd = "cp $(location :vidya-ffi[shared]) $OUT",
+    visibility = ["PUBLIC"],
+)
+
+# The same C ABI, cross-compiled for a 64-bit Android device. The sources and
+# deps are identical — only the target configuration moves, which is what
+# `configured_alias` is for.
+configured_alias(
+    name = "vidya-ffi-android",
+    actual = ":vidya-ffi",
+    platform = "//platforms:android-arm64",
+    visibility = ["PUBLIC"],
+)
+
+genrule(
+    name = "libvidya-android",
+    out = "libvidya.so",
+    cmd = "cp $(location :vidya-ffi-android[shared]) $OUT",
     visibility = ["PUBLIC"],
 )

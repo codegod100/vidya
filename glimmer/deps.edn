@@ -12,8 +12,8 @@
  ;; backend implements the tree ABI this project binds — the C/raylib build of
  ;; libvidya exports vidya.h alone, so it is deliberately NOT interchangeable
  ;; here, unlike for ../jolt. Put the built library on the search path:
- ;;   cargo build --manifest-path ../ffi/Cargo.toml --release
- ;;   LD_LIBRARY_PATH=../ffi/target/release jolt counter
+ ;;   just ffi
+ ;;   LD_LIBRARY_PATH=../build jolt counter
  :jolt/native [{:name "vidya"
                 :darwin ["libvidya.dylib"]
                 :linux ["libvidya.so"]}]

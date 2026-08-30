@@ -4,6 +4,30 @@ vendor = {}
 # Crates read CARGO_PKG_* at compile time; without this they fail to build.
 cargo_env = true
 
+# Feature resolution runs once per platform. Naming any platform replaces
+# reindeer's default list, so the desktop hosts are repeated here alongside the
+# Android target the `//:libvidya-android` build needs — without it the vendored
+# graph has no android-activity and winit's NativeActivity backend is missing.
+[platform.linux-x86_64]
+target = "x86_64-unknown-linux-gnu"
+execution-platform = true
+
+[platform.linux-arm64]
+target = "aarch64-unknown-linux-gnu"
+execution-platform = true
+
+[platform.macos-x86_64]
+target = "x86_64-apple-darwin"
+execution-platform = true
+
+[platform.macos-arm64]
+target = "aarch64-apple-darwin"
+execution-platform = true
+
+[platform.android-arm64]
+target = "aarch64-linux-android"
+execution-platform = false
+
 [buck]
 file_name = "BUCK"
 buckfile_imports = """

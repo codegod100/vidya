@@ -3,3 +3,7 @@
 extra_srcs = [
     "build/rustc.rs",
 ]
+
+# Run the crate build script (emits cfgs / OUT_DIR sources).
+[buildscript]
+run = true

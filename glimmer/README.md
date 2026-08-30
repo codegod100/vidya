@@ -68,14 +68,18 @@ it on the loop thread. Handlers are held on the jolt side and never sent.
 `libvidya` built from [`../ffi`](../ffi), the Rust/egui implementation:
 
 ```sh
-cargo build --manifest-path ../ffi/Cargo.toml --release
+just ffi            # buck2 → ../build/libvidya.so
 ```
 
 Then put it on the search path when running anything here:
 
 ```sh
-LD_LIBRARY_PATH=../ffi/target/release jolt counter
+LD_LIBRARY_PATH=../build jolt counter
 ```
+
+`just ffi-android` cross-compiles the same library to
+`../build/android/arm64-v8a/libvidya.so` for a 64-bit device — both ABIs this
+backend binds are exported there too.
 
 On macOS use `DYLD_LIBRARY_PATH`. Note that this is the one place in the repo
 where the two `libvidya` builds are **not** interchangeable: `../raylib`
@@ -191,7 +195,7 @@ no display is required, which is also what makes it run in CI.
 Painting is checked separately, by `jolt smoke` under `VIDYA_CAPTURE`:
 
 ```sh
-VIDYA_CAPTURE=/tmp/frame.ppm LD_LIBRARY_PATH=../ffi/target/release jolt smoke
+VIDYA_CAPTURE=/tmp/frame.ppm LD_LIBRARY_PATH=../build jolt smoke
 ```
 
 ## Limits

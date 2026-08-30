@@ -14,9 +14,6 @@ endif()
 
 option(VIDYA_FETCH_RAYLIB "Fetch raylib when it is not installed" OFF)
 option(VIDYA_BUILD_EXAMPLE "Build the Vidya showcase" ON)
-option(VIDYA_BUILD_ANDROID_APP "Build libmain.so for an Android NativeActivity" OFF)
-set(VIDYA_JOLT_BOOT_OBJECT "" CACHE FILEPATH "ARM64 ELF object containing jolt.boot")
-set(VIDYA_CHEZ_ANDROID "" CACHE PATH "Chez tarm64le build root")
 set(VIDYA_BACKEND "cimgui" CACHE STRING "UI backend: cimgui or direct")
 set_property(CACHE VIDYA_BACKEND PROPERTY STRINGS cimgui direct)
 option(VIDYA_FREETYPE "Rasterize Dear ImGui glyphs with FreeType" ON)
@@ -180,34 +177,6 @@ set_target_properties(vidya PROPERTIES
 if(VIDYA_BUILD_EXAMPLE)
   add_executable(vidya-showcase examples/showcase.c)
   target_link_libraries(vidya-showcase PRIVATE vidya)
-endif()
-
-if(ANDROID AND VIDYA_BUILD_ANDROID_APP)
-  if(NOT VIDYA_JOLT_BOOT_OBJECT OR NOT EXISTS "${VIDYA_JOLT_BOOT_OBJECT}")
-    message(FATAL_ERROR "VIDYA_JOLT_BOOT_OBJECT must name the embedded ARM64 Jolt boot object")
-  endif()
-  if(NOT VIDYA_CHEZ_ANDROID OR
-      NOT EXISTS "${VIDYA_CHEZ_ANDROID}/tarm64le/boot/tarm64le/libkernel.a")
-    message(FATAL_ERROR "VIDYA_CHEZ_ANDROID must name a Chez tarm64le cross build")
-  endif()
-
-  add_library(main SHARED
-    android/jolt_main.c
-    "${VIDYA_JOLT_BOOT_OBJECT}")
-  set_source_files_properties("${VIDYA_JOLT_BOOT_OBJECT}"
-    PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
-  target_include_directories(main PRIVATE
-    "${VIDYA_CHEZ_ANDROID}/boot/tarm64le")
-  target_link_libraries(main PRIVATE
-    vidya
-    "${VIDYA_CHEZ_ANDROID}/tarm64le/boot/tarm64le/libkernel.a"
-    "${VIDYA_CHEZ_ANDROID}/lz4/lib/liblz4.a"
-    android log EGL GLESv2 OpenSLES z dl m)
-  target_link_options(main PRIVATE
-    "-Wl,-u,ANativeActivity_onCreate"
-    "-Wl,--export-dynamic"
-    "-Wl,--no-undefined")
-  set_target_properties(main PROPERTIES OUTPUT_NAME main)
 endif()
 
 include(GNUInstallDirs)

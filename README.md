@@ -81,6 +81,17 @@ just launch            # start installed activity only
 just shots             # Waydroid screencaps → docs/screenshots/mobile/
 ```
 
+```bash
+just ffi               # buck2 → build/libvidya.so                (host)
+just ffi-android       # buck2 → build/android/arm64-v8a/libvidya.so
+```
+
+Both are the **same** Rust/egui sources; only the target configuration moves.
+Android is the sole backend on device now — the earlier cimgui/raylib
+NativeActivity port is gone. `just ffi-android` needs `ANDROID_NDK_HOME` for the
+linker (r27+); rustc and the `aarch64-linux-android` libstd are DotSlash-pinned
+like everything else, so there is no rustup target to add.
+
 `just waydroid` builds **in `android-demo/`** with the nix develop toolchain (no temp/isolated copy).
 
 Sections:

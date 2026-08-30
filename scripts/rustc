@@ -18,8 +18,60 @@ for arg in "$@"; do
 done
 
 root=$(dirname -- "$(dirname -- "$(dirname -- "$exe")")")
+host_std=
 for std in "$root"/rust-std-*/; do
-    exec "$exe" --sysroot "${std%/}" "$@"
+    host_std=${std%/}
+    break
 done
-echo "scripts/rustc: no rust-std component under $root" >&2
-exit 1
+[ -n "$host_std" ] || { echo "scripts/rustc: no rust-std component under $root" >&2; exit 1; }
+
+# Cross-compiling needs one sysroot holding both triples: the host's, for proc
+# macros and build scripts, and the target's, for the crate being built. The
+# components ship as separate tarballs, so stitch them together as a symlink
+# farm — cheap to build, and stable enough to cache across invocations.
+#
+# buck2 passes rustc its arguments in an @argsfile, so --target is usually not
+# in argv at all; look inside those too.
+scan_target() {
+    prev=
+    for arg in "$@"; do
+        case $arg in
+            --target=*-linux-android) echo "${arg#--target=}"; return ;;
+            *-linux-android) [ "$prev" = "--target" ] && { echo "$arg"; return; } ;;
+            @*) if [ -f "${arg#@}" ]; then
+                    found=$(sed -n 's/^"\{0,1\}\(--target=\)\{0,1\}\([a-z0-9_]*-linux-android[0-9]*\)"\{0,1\}$/\2/p' \
+                        "${arg#@}" | head -n1)
+                    [ -n "$found" ] && { echo "$found"; return; }
+                fi ;;
+        esac
+        prev=$arg
+    done
+}
+
+android_target=$(scan_target "$@")
+
+if [ -z "$android_target" ]; then
+    exec "$exe" --sysroot "$host_std" "$@"
+fi
+
+std_install=$(dotslash -- fetch "$dir/rust-std-android.dotslash")
+target_std=$(dirname -- "$std_install")/rust-std-$android_target
+
+merged=${XDG_CACHE_HOME:-$HOME/.cache}/vidya-rust-sysroot/$(basename -- "$host_std")+$android_target
+if [ ! -d "$merged/lib/rustlib/$android_target" ]; then
+    tmp=$merged.$$
+    rm -rf -- "$tmp"
+    mkdir -p -- "$tmp/lib/rustlib"
+    for entry in "$host_std"/lib/*; do
+        [ "$(basename -- "$entry")" = rustlib ] && continue
+        ln -sfn -- "$entry" "$tmp/lib/"
+    done
+    for entry in "$host_std"/lib/rustlib/*; do
+        ln -sfn -- "$entry" "$tmp/lib/rustlib/"
+    done
+    ln -sfn -- "$target_std/lib/rustlib/$android_target" "$tmp/lib/rustlib/$android_target"
+    rm -rf -- "$merged"
+    mv -- "$tmp" "$merged" 2>/dev/null || rm -rf -- "$tmp"
+fi
+
+exec "$exe" --sysroot "$merged" "$@"

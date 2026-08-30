@@ -1,0 +1,15 @@
+# Target platform for the Android build of the C ABI.
+#
+# Only the *target* configuration moves: the execution platform stays
+# prelude//platforms:default, so build scripts and proc macros still compile and
+# run on the host. That matches `execution-platform = false` on the
+# android-arm64 entry in third-party/rust/reindeer.toml, which is what keeps a
+# host build script from unifying its features into the Android graph.
+platform(
+    name = "android-arm64",
+    constraint_values = [
+        "prelude//os/constraints:os[android]",
+        "prelude//cpu/constraints:cpu[arm64]",
+    ],
+    visibility = ["PUBLIC"],
+)
