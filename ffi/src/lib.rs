@@ -447,8 +447,24 @@ pub unsafe extern "C" fn vidya_node_get_bool(node: c_int, key: *const c_char) ->
 /// thread.
 #[no_mangle]
 pub extern "C" fn vidya_node_tag(node: c_int) -> *const c_char {
-    let tag = TREE.with_borrow(|tree| tree.tag_name(node.max(0) as u32));
-    scratch(tag)
+    let tag = TREE.with_borrow(|tree| tree.tag_name(node.max(0) as u32).to_owned());
+    scratch(&tag)
+}
+
+/// The subtree at `node` as hiccup text, for logging and bug reports; `node` 0
+/// means the root, so `vidya_tree_dump(0)` is the whole window.
+///
+/// # Safety
+/// The returned pointer is valid until the next string-returning call on this
+/// thread.
+#[no_mangle]
+pub extern "C" fn vidya_tree_dump(node: c_int) -> *const c_char {
+    let node = node.max(0) as u32;
+    let text = TREE.with_borrow(|tree| {
+        let id = if node == 0 { tree.root() } else { node };
+        tree.dump(id)
+    });
+    scratch(&text)
 }
 
 #[no_mangle]

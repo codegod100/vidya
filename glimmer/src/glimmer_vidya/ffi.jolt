@@ -45,6 +45,7 @@
 (ffi/defcfn node-tag "vidya_node_tag" [:int] :string)
 (ffi/defcfn node-child-count "vidya_node_child_count" [:int] :int)
 (ffi/defcfn node-child-at "vidya_node_child_at" [:int :int] :int)
+(ffi/defcfn tree-dump "vidya_tree_dump" [:int] :string)
 
 (ffi/defcfn raw-node-append "vidya_node_append" [:int :int] :int)
 (ffi/defcfn node-remove! "vidya_node_remove" [:int :int] :void)

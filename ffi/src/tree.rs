@@ -69,7 +69,9 @@ pub enum Tag {
     Avatar,
     Reaction,
     Status,
-    Unknown,
+    /// A tag this backend has not grown yet, keeping the name it was created
+    /// with so a dump answers what the caller actually asked for.
+    Unknown(String),
 }
 
 impl Tag {
@@ -99,13 +101,13 @@ impl Tag {
             "avatar" => Self::Avatar,
             "reaction" => Self::Reaction,
             "status" => Self::Status,
-            _ => Self::Unknown,
+            other => Self::Unknown(other.to_owned()),
         }
     }
 
     /// The canonical name of a parsed tag: `:hbox` and `:vbox` both answer
     /// `box`, since the orientation lives in a prop rather than in the tag.
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         match self {
             Self::Window => "window",
             Self::Box => "box",
@@ -129,7 +131,7 @@ impl Tag {
             Self::Avatar => "avatar",
             Self::Reaction => "reaction",
             Self::Status => "status",
-            Self::Unknown => "",
+            Self::Unknown(name) => name,
         }
     }
 }
@@ -147,6 +149,40 @@ pub struct Event {
     pub num: f64,
 }
 
+/// One prop value as EDN. Numbers that happen to be whole print without a
+/// trailing `.0`, since every number crossed the boundary as a double and
+/// `{:spacing 8.0}` reads worse than `{:spacing 8}`.
+fn write_value(value: &Value, out: &mut String) {
+    match value {
+        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        Value::Num(n) => {
+            if n.is_finite() && n.fract() == 0.0 && n.abs() < 1e15 {
+                out.push_str(&format!("{}", *n as i64));
+            } else if n.is_finite() {
+                out.push_str(&format!("{n}"));
+            } else {
+                // EDN has no infinity or NaN literal; say so rather than emit
+                // something no reader will take.
+                out.push_str("nil");
+            }
+        }
+        Value::Str(text) => {
+            out.push('"');
+            for c in text.chars() {
+                match c {
+                    '"' => out.push_str("\\\""),
+                    '\\' => out.push_str("\\\\"),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    _ => out.push(c),
+                }
+            }
+            out.push('"');
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct Node {
     tag: Tag,
@@ -159,7 +195,7 @@ struct Node {
 
 impl Default for Tag {
     fn default() -> Self {
-        Self::Unknown
+        Self::Unknown(String::new())
     }
 }
 
@@ -451,7 +487,7 @@ impl Tree {
     /// there. With [`Tree::child_count`] and [`Tree::child_at`] this is enough
     /// for a caller to read back the tree it built — which is how the jolt
     /// backend's tests assert against a real reconcile with no window open.
-    pub fn tag_name(&self, id: u32) -> &'static str {
+    pub fn tag_name(&self, id: u32) -> &str {
         self.slot(id).map_or("", |n| n.tag.name())
     }
 
@@ -482,6 +518,57 @@ impl Tree {
 
     pub fn get(&self, id: u32, key: &str) -> Option<&Value> {
         self.slot(id).and_then(|n| n.props.get(key))
+    }
+
+    // ── reading it back as hiccup ───────────────────────────────────────────
+
+    /// The subtree at `id` as pretty-printed hiccup, in the same shape the
+    /// caller wrote: `[:tag {props} children…]`, one node to a line.
+    ///
+    /// This is what the tree *is*, not what a component said — it is read from
+    /// the arena after the reconciler has had its way with it, so a patch that
+    /// went to the wrong node shows up here as a difference from the source.
+    ///
+    /// A node that does not exist dumps as `nil`. `:hbox` and `:vbox` both
+    /// dump as `:box`, as they are both stored as one; their orientation is in
+    /// the props. Handlers are not here — they never crossed the boundary.
+    pub fn dump(&self, id: u32) -> String {
+        let mut out = String::new();
+        self.dump_into(id, 0, &mut out);
+        out
+    }
+
+    fn dump_into(&self, id: u32, depth: usize, out: &mut String) {
+        let Some(node) = self.slot(id) else {
+            out.push_str("nil");
+            return;
+        };
+        let indent = "  ".repeat(depth);
+        out.push_str("[:");
+        out.push_str(node.tag.name());
+
+        // Sorted, so two dumps of the same tree compare as text.
+        let mut keys: Vec<&String> = node.props.keys().collect();
+        keys.sort();
+        out.push_str(" {");
+        for (i, key) in keys.iter().enumerate() {
+            if i > 0 {
+                out.push(' ');
+            }
+            out.push(':');
+            out.push_str(key);
+            out.push(' ');
+            write_value(&node.props[*key], out);
+        }
+        out.push('}');
+
+        for child in &node.children {
+            out.push('\n');
+            out.push_str(&indent);
+            out.push_str("  ");
+            self.dump_into(*child, depth + 1, out);
+        }
+        out.push(']');
     }
 
     // ── events ──────────────────────────────────────────────────────────────
@@ -600,7 +687,7 @@ impl Tree {
             // The root is the window itself: its children stack down the page.
             Tag::Window => self.paint_children(id, ui, theme),
 
-            Tag::Box | Tag::Unknown => {
+            Tag::Box | Tag::Unknown(_) => {
                 let horizontal = props.str("orientation") == "horizontal";
                 let spacing = props.num("spacing", theme.spacing.sm as f64) as f32;
                 self.with_margin(props, ui, |tree, ui| {
@@ -1333,6 +1420,35 @@ mod tests {
         let mut tree = Tree::default();
         let id = tree.new_node("carousel");
         assert!(tree.exists(id));
-        assert_eq!(tree.slot(id).unwrap().tag, Tag::Unknown);
+        assert_eq!(tree.slot(id).unwrap().tag, Tag::Unknown("carousel".to_owned()));
+    }
+    #[test]
+    fn dump_is_hiccup_of_what_the_tree_holds() {
+        let mut tree = Tree::default();
+        let root = tree.new_node("vbox");
+        tree.set(root, "spacing", Value::Num(8.0));
+        tree.set(root, "orientation", Value::Str("vertical".to_owned()));
+        let button = tree.new_node("button");
+        tree.set(button, "label", Value::Str("go".to_owned()));
+        tree.set(button, "sensitive", Value::Bool(false));
+        tree.append(root, button);
+
+        assert_eq!(
+            tree.dump(root),
+            "[:box {:orientation \"vertical\" :spacing 8}\n  \
+             [:button {:label \"go\" :sensitive false}]]"
+        );
+    }
+
+    #[test]
+    fn dump_keeps_an_unknown_tag_and_escapes_a_string() {
+        let mut tree = Tree::default();
+        let id = tree.new_node("carousel");
+        tree.set(id, "label", Value::Str("a \"quote\"\nand a line".to_owned()));
+        assert_eq!(
+            tree.dump(id),
+            "[:carousel {:label \"a \\\"quote\\\"\\nand a line\"}]"
+        );
+        assert_eq!(tree.dump(9999), "nil");
     }
 }

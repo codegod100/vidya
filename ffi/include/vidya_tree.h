@@ -87,6 +87,19 @@ VIDYA_API const char *vidya_node_tag(int node);
 VIDYA_API int vidya_node_child_count(int node);
 VIDYA_API int vidya_node_child_at(int node, int index);
 
+/*
+ * The subtree at `node` as pretty-printed hiccup — `[:tag {props} children...]`,
+ * one node to a line — for logging, tests, and bug reports. `node` 0 means the
+ * root, so `vidya_tree_dump(0)` is the whole window. Borrowed pointer, under
+ * the same rule as the reads above.
+ *
+ * It answers what the tree *is*, read back from the arena, rather than what a
+ * caller meant to build. Two caveats: `hbox` and `vbox` both dump as `box`,
+ * with the orientation in the props, and handlers are absent because they
+ * never crossed this boundary.
+ */
+VIDYA_API const char *vidya_tree_dump(int node);
+
 VIDYA_API int vidya_node_append(int parent, int child);
 /* Unparents AND frees `child` with everything under it. */
 VIDYA_API void vidya_node_remove(int parent, int child);

@@ -312,6 +312,31 @@
           (ffi/close!)
           (reset! handlers {}))))))
 
+;; --- looking at what was rendered --------------------------------------------
+(defn dump-str
+  "The rendered tree as hiccup text, read back out of the library.
+
+  With no argument, the whole window; with a node handle, that subtree. This is
+  the tree as it *is* after the reconciler has run, not what a component
+  returned, so paste it into a bug report and the two can be compared.
+
+  Two things to know when reading one. `:hbox` and `:vbox` are one node down
+  there and both dump as `:box`, with the orientation in the props; and no
+  `:on-*` appears, because handlers are held on this side and never sent."
+  ([] (dump-str 0))
+  ([node] (ffi/tree-dump node)))
+
+(defn dump
+  "`dump-str`, read back as hiccup data — vectors, keywords and maps — for a
+  test that wants to assert on a subtree rather than on a string."
+  ([] (dump 0))
+  ([node] (read-string (dump-str node))))
+
+(defn dump!
+  "Print `dump-str` to stdout. The one you want from a handler or the REPL."
+  ([] (dump! 0))
+  ([node] (println (dump-str node)) nil))
+
 ;; --- the backend -------------------------------------------------------------
 (def backend
   "The Vidya backend map handed to glimmer.backend/register!. See that

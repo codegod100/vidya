@@ -95,6 +95,40 @@ jolt showcase   # every tag, a keyed task list, an entry, a disabled subtree
 jolt smoke      # non-interactive: reconciles under paint, then quits
 ```
 
+## Seeing what was rendered
+
+`dump` reads the tree back out of the library as hiccup — what is actually
+mounted, after the reconciler has had its way with it, rather than what a
+component returned:
+
+```clojure
+(require '[glimmer-vidya.core :as backend])
+
+(backend/dump!)          ; print the whole window
+(backend/dump! node)     ; or one subtree
+(backend/dump)           ; the same as hiccup data, for a test
+(backend/dump-str)       ; as text, to paste into a bug report
+```
+
+```clojure
+[:window {}
+  [:card {}
+    [:title {:label "Counter"}]
+    [:label {:label "Count: 3"}]
+    [:box {:orientation "horizontal" :spacing 8}
+      [:button {:label "- 1"}]
+      [:button {:kind "primary" :label "+ 1"}]]]]
+```
+
+Two things to expect when reading one, both of them the boundary showing
+through. `:hbox` and `:vbox` are one node down there, so both dump as `:box`
+with the orientation in the props; and no `:on-*` appears, because handlers are
+held on this side and never sent. Props are sorted, so two dumps of the same
+tree compare as text.
+
+It needs no window — the tree is only painted by `vidya_tree_frame` — so a
+headless test can mount a component and assert on `(dump root)` directly.
+
 ## Hiccup reference
 
 Elements are `[:tag props? & children]`, as everywhere in glimmer. Strings and

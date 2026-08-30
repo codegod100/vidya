@@ -169,3 +169,29 @@
         (reset! items [:c :b])
         (is (= ["c" "b"] (labels box)))
         (is (= 2 (ffi/node-child-count box)))))))
+
+;; --- the hiccup dump ---------------------------------------------------------
+(deftest a_dump_reads_back_as_the_hiccup_that_was_mounted
+  (let [root (fresh-root)]
+    (ui/mount root :window [greeting "world"])
+    (testing "the tree comes back as data, one node per hiccup vector"
+      ;; :vbox is a box with an orientation down there, and :spacing crossed as
+      ;; a double — so this is the mounted hiccup, not a copy of its source.
+      (is (= [:window {}
+              [:box {:orientation "vertical" :spacing 6}
+               [:title {:label "hello"}]
+               [:label {:label "world"}]]]
+             (backend/dump root))))
+    (testing "and as text, for a bug report"
+      (is (= "[:window {}\n  [:box {:orientation \"vertical\" :spacing 6}\n    [:title {:label \"hello\"}]\n    [:label {:label \"world\"}]]]"
+             (backend/dump-str root))))))
+
+(deftest a_dump_shows_a_reactive_change_and_hides_handlers
+  (let [root (fresh-root)
+        who (r/atom "world")]
+    (ui/mount root :window [(fn [] [:button {:label @who :on-click (fn [] nil)}])])
+    (is (= [:window {} [:button {:label "world"}]] (backend/dump root)))
+    (testing "the handler is not in it — it never crossed the boundary"
+      (is (not (contains? (second (nth (backend/dump root) 2)) :on-click))))
+    (reset! who "glimmer")
+    (is (= [:window {} [:button {:label "glimmer"}]] (backend/dump root)))))
