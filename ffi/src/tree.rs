@@ -30,7 +30,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use egui::{Align, Layout, Margin, TextureOptions, Ui, Vec2};
+use egui::{Align, Align2, Color32, FontId, Layout, Margin, TextureOptions, Ui, Vec2};
 use vidya_core::Theme;
 
 /// A prop value. The three types the ABI can carry, and all glimmer needs:
@@ -66,6 +66,7 @@ pub enum Tag {
     Progress,
     Spinner,
     Image,
+    Avatar,
     Status,
     Unknown,
 }
@@ -94,6 +95,7 @@ impl Tag {
             "progress" => Self::Progress,
             "spinner" => Self::Spinner,
             "image" => Self::Image,
+            "avatar" => Self::Avatar,
             "status" => Self::Status,
             _ => Self::Unknown,
         }
@@ -122,6 +124,7 @@ impl Tag {
             Self::Progress => "progress",
             Self::Spinner => "spinner",
             Self::Image => "image",
+            Self::Avatar => "avatar",
             Self::Status => "status",
             Self::Unknown => "",
         }
@@ -173,6 +176,30 @@ pub struct Tree {
     /// The event most recently dequeued by `poll`, whose fields the accessors
     /// read. Held here so the ABI can return a payload without out-parameters.
     current: Option<Event>,
+}
+
+/// A stable colour for a name: the same person is the same colour every time,
+/// and two people are unlikely to share one. Kept dark enough for the light
+/// text drawn on top and dull enough not to compete with the accent.
+fn name_colour(name: &str, theme: &Theme) -> Color32 {
+    let mut hash: u32 = 2166136261;
+    for b in name.as_bytes() {
+        hash ^= *b as u32;
+        hash = hash.wrapping_mul(16777619);
+    }
+    // Six hues around the wheel, at a fixed saturation and value, rather than
+    // free RGB: random channels give muddy colours as often as good ones.
+    let sector = (hash % 6) as f32;
+    let (r, g, b) = match sector as u32 {
+        0 => (0.80, 0.35, 0.35),
+        1 => (0.80, 0.55, 0.25),
+        2 => (0.45, 0.65, 0.35),
+        3 => (0.30, 0.60, 0.65),
+        4 => (0.40, 0.50, 0.80),
+        _ => (0.65, 0.40, 0.70),
+    };
+    let _ = theme;
+    Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
 }
 
 impl Tree {
@@ -727,6 +754,55 @@ impl Tree {
             // A picture from a file the caller has already fetched. Decoded
             // once and kept as a texture: the tree is walked every frame, and
             // decoding a PNG sixty times a second is not a thing to do.
+            // Someone's face, or the next best thing. A chat wants one column
+            // of them down the left, so this is a fixed square whatever the
+            // picture's own proportions are, and there is always something to
+            // draw: a name with no picture behind it becomes its initial on a
+            // colour of its own, which keeps the column straight and still
+            // tells one person from another at a glance.
+            Tag::Avatar => {
+                let size = props.num("size", 24.0) as f32;
+                let label = props.label().to_owned();
+                let path = props.str("src").to_owned();
+                let (rect, response) =
+                    ui.allocate_exact_size(Vec2::splat(size), egui::Sense::click());
+
+                let texture = if path.is_empty() {
+                    None
+                } else {
+                    self.texture(ui, &path)
+                };
+                match texture {
+                    // A corner radius of half the side is a circle.
+                    Some(texture) => egui::Image::new(egui::load::SizedTexture::new(
+                        texture.id(),
+                        Vec2::splat(size),
+                    ))
+                    .corner_radius(size * 0.5)
+                    .paint_at(ui, rect),
+                    None => {
+                        let initial = label
+                            .trim_start_matches(['#', '&', '@', '+', '%', '~'])
+                            .chars()
+                            .next()
+                            .map(|c| c.to_uppercase().to_string())
+                            .unwrap_or_else(|| "?".to_owned());
+                        ui.painter()
+                            .circle_filled(rect.center(), size * 0.5, name_colour(&label, theme));
+                        ui.painter().text(
+                            rect.center(),
+                            Align2::CENTER_CENTER,
+                            initial,
+                            FontId::proportional((size * 0.45).max(9.0)),
+                            theme.palette.accent_fg,
+                        );
+                    }
+                }
+                if response.clicked() {
+                    self.emit(id, "click", label, 0.0);
+                }
+            }
+
             Tag::Image => {
                 let path = props.str("src").to_owned();
                 if path.is_empty() {
