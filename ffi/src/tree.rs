@@ -30,7 +30,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use egui::{Align, Align2, Color32, FontId, Layout, Margin, TextureOptions, Ui, Vec2};
+use egui::{Align, Align2, Color32, FontId, Id, Layout, Margin, TextureOptions, Ui, Vec2};
 use vidya_core::Theme;
 
 /// A prop value. The three types the ABI can carry, and all glimmer needs:
@@ -516,6 +516,12 @@ impl Tree {
             return;
         };
         let enabled = props.bool("sensitive", true);
+        // `:scroll-here` brings this node into view in whatever scroll area it
+        // sits in. It fires on every frame the prop is set, so a caller sets it
+        // for the moment of a jump and takes it off again — leaving it on would
+        // pin the area there and take scrolling away from the reader.
+        let scroll_here = props.bool("scroll-here", false);
+        let before = ui.cursor().top();
         self.with_width(&props, ui, |tree, ui| {
             if enabled {
                 tree.paint_tag(id, &tag, &props, ui, theme);
@@ -526,6 +532,13 @@ impl Tree {
                 ui.add_enabled_ui(false, |ui| tree.paint_tag(id, &tag, &props, ui, theme));
             }
         });
+        if scroll_here {
+            let rect = egui::Rect::from_min_max(
+                egui::pos2(ui.max_rect().left(), before),
+                egui::pos2(ui.max_rect().right(), ui.cursor().top()),
+            );
+            ui.scroll_to_rect(rect, Some(Align::Center));
+        }
     }
 
     /// Constrain `add` to the node's `:width-request`, when it has one.
@@ -653,15 +666,80 @@ impl Tree {
                         area
                     }
                 };
+                // Keyed by the node rather than by where it sits: egui derives
+                // a scroll area's id from its parent ui, so two areas that
+                // occupy the same place in the tree at different times — the
+                // message list and the picture that replaces the screen it is
+                // on — would otherwise share one offset, and the list would
+                // come back showing whatever the picture left behind.
+                let area = area.id_salt(("vidya_scroll", id));
                 // A chat wants the newest line, not the oldest.
                 let area = area.stick_to_bottom(props.bool("stick-to-bottom", false));
+                // `:scroll-to-bottom` is a number the caller bumps rather than
+                // a flag it sets: a flag would have to be cleared afterwards,
+                // and there is no frame in which the caller could do it. A
+                // value it has not seen before means "now".
+                let jump_key = Id::new(("vidya_scroll_jump", id));
+                let jump = props.num("scroll-to-bottom", 0.0);
+                let jumped = ui.ctx().data(|d| d.get_temp::<f64>(jump_key));
+                let jump_now = jump > 0.0 && jumped != Some(jump);
+                let area = if jump_now {
+                    ui.ctx().data_mut(|d| d.insert_temp(jump_key, jump));
+                    area.vertical_scroll_offset(f32::MAX)
+                } else {
+                    area
+                };
                 // Hold the content to the viewport's width, as `:page` does,
                 // so a wrapping child wraps at the visible edge.
                 let viewport_width = ui.available_width();
-                area.auto_shrink([false, false]).show(ui, |ui| {
+                let output = area.auto_shrink([false, false]).show(ui, |ui| {
                     ui.set_max_width(viewport_width);
                     self.paint_children(id, ui, theme);
                 });
+
+                // Say when the view leaves the end and when it comes back, so
+                // a caller can offer the way back. Reported on change only: the
+                // position itself changes every frame of a scroll, and an event
+                // a frame is not news.
+                // Within a line of the end counts as the end, and content
+                // shorter than the viewport is always at it.
+                let max_offset = (output.content_size.y - output.inner_rect.height()).max(0.0);
+                let at_end = output.state.offset.y >= max_offset - 24.0;
+
+                // Reaching the end is reported at once; leaving it has to hold
+                // for a few frames first. A burst of arriving messages grows
+                // the content faster than the offset follows it, and reporting
+                // that honestly would blink "scrolled away" whenever a channel
+                // is busy.
+                let end_key = Id::new(("vidya_scroll_at_end", id));
+                let away_key = Id::new(("vidya_scroll_away_frames", id));
+                let away_frames = ui.ctx().data(|d| d.get_temp::<u32>(away_key)).unwrap_or(0);
+                let away_frames = if at_end { 0 } else { away_frames.saturating_add(1) };
+                ui.ctx().data_mut(|d| d.insert_temp(away_key, away_frames));
+
+                let settled = if at_end {
+                    Some(true)
+                } else if away_frames >= 3 {
+                    Some(false)
+                } else {
+                    None
+                };
+                if let Some(at_end) = settled {
+                    let was_at_end = ui.ctx().data(|d| d.get_temp::<bool>(end_key));
+                    if was_at_end != Some(at_end) {
+                        ui.ctx().data_mut(|d| d.insert_temp(end_key, at_end));
+                        // Only after the first report: the opening one would
+                        // arrive before the content has a height.
+                        if was_at_end.is_some() {
+                            self.emit(
+                                id,
+                                "change",
+                                if at_end { "end" } else { "away" }.to_owned(),
+                                if at_end { 1.0 } else { 0.0 },
+                            );
+                        }
+                    }
+                }
             }
 
             Tag::Card => {
