@@ -6,6 +6,7 @@
 #include "rlImGui.h"
 
 #include <stdio.h>
+#include <string.h>
 #if defined(__ANDROID__)
 #include <android/log.h>
 #endif
@@ -33,46 +34,269 @@ static ImVec4_c rgba(unsigned int hex) {
     };
 }
 
-static const char *first_font(const char *const *paths, int count) {
-    for (int i = 0; i < count; i++) {
-        if (FileExists(paths[i])) return paths[i];
+/* Fonts.
+ *
+ * Dear ImGui 1.92 rasterizes glyphs on demand, so a face is registered once at
+ * a reference size and igPushFont(font, size) may then ask for any other size.
+ * Three things decide how the result looks:
+ *
+ *   - the rasterizer. FreeType with light hinting is what desktop toolkits use
+ *     for interface text; builds without it fall back to Dear ImGui's bundled
+ *     stb_truetype, which is softer at UI sizes.
+ *   - the density. rlImGui reports the window's DPI scale through
+ *     io.DisplayFramebufferScale and Dear ImGui bakes glyphs at that density,
+ *     so FLAG_WINDOW_HIGHDPI in vidya_open is what keeps HiDPI text crisp.
+ *   - the face. Dear ImGui's built-in font is a fallback, not an interface
+ *     font, so the search below covers the desktops and Android rather than
+ *     only Debian's font paths.
+ */
+
+#define VIDYA_BODY_SIZE 16.0f
+#define VIDYA_HEADING_SIZE 18.0f
+
+#if defined(VIDYA_EMBED_SYMBOL_FONT)
+extern const unsigned char vidya_symbol_font[];
+extern const unsigned int vidya_symbol_font_size;
+#endif
+
+typedef struct {
+    const char *regular;
+    const char *bold; /* NULL when the family installs a single weight. */
+} VidyaFontFamily;
+
+/* Both weights come from one family so headings never switch typeface. Ubuntu
+ * stays first because the egui implementation of Vidya ships it and the two
+ * should look alike; the rest widen the search past Debian's layout. */
+static const VidyaFontFamily ui_families[] = {
+    {"/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+     "/usr/share/fonts/truetype/ubuntu/Ubuntu-M.ttf"},
+    /* GNOME's interface fonts. Both install one variable file, so their bold
+     * is a named instance of the regular rather than a second path. */
+    {"/usr/share/fonts/Adwaita/AdwaitaSans-Regular.ttf", NULL},
+    {"/usr/share/fonts/cantarell/Cantarell-VF.otf", NULL},
+    {"/usr/share/fonts/abattis-cantarell/Cantarell-VF.otf", NULL},
+    {"/usr/share/fonts/truetype/cantarell/Cantarell-VF.otf", NULL},
+    /* Distribution defaults. */
+    {"/usr/share/fonts/liberation-fonts/LiberationSans-Regular.ttf",
+     "/usr/share/fonts/liberation-fonts/LiberationSans-Bold.ttf"},
+    {"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"},
+    {"/usr/share/fonts/dejavu/DejaVuSans.ttf",
+     "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"},
+    {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"},
+    {"/usr/share/fonts/TTF/DejaVuSans.ttf",
+     "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"},
+    {"/home/linuxbrew/.linuxbrew/share/fonts/dejavu/DejaVuSans.ttf",
+     "/home/linuxbrew/.linuxbrew/share/fonts/dejavu/DejaVuSans-Bold.ttf"},
+    /* macOS. */
+    {"/System/Library/Fonts/SFNS.ttf", NULL},
+    {"/System/Library/Fonts/Helvetica.ttc", NULL},
+    {"/opt/homebrew/share/fonts/dejavu/DejaVuSans.ttf",
+     "/opt/homebrew/share/fonts/dejavu/DejaVuSans-Bold.ttf"},
+    /* Windows. */
+    {"C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/segoeuib.ttf"},
+    {"C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"},
+    /* Android. Without these the NativeActivity fell back to Dear ImGui's
+     * built-in font. */
+    {"/system/fonts/Roboto-Regular.ttf", "/system/fonts/Roboto-Medium.ttf"},
+    {"/system/fonts/NotoSans-Regular.ttf", "/system/fonts/NotoSans-Bold.ttf"},
+    {"/system/fonts/DroidSans.ttf", "/system/fonts/DroidSans-Bold.ttf"}
+};
+
+static ImFontConfig *face_config(int embolden) {
+    ImFontConfig *cfg = ImFontConfig_ImFontConfig();
+#if defined(IMGUI_ENABLE_FREETYPE)
+    /* Snap to the pixel grid vertically only. Full hinting sharpens stems but
+     * distorts letterforms and spacing at 16px, so desktop rasterizers settled
+     * on the lighter variant for interface text. */
+    cfg->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LightHinting;
+    if (embolden) cfg->FontLoaderFlags |= ImGuiFreeTypeLoaderFlags_Bold;
+#else
+    (void)embolden;
+#endif
+    return cfg;
+}
+
+/* Merge the bundled DejaVu subset behind `dst` so arrows, bullets, curly
+ * quotes, box drawing and math-in-prose still draw when the interface font has
+ * no glyph for them. Mirrors vidya::fonts in the egui implementation. */
+static void merge_symbol_face(ImFontAtlas *atlas, ImFont *dst, float size,
+                              int embolden) {
+#if defined(VIDYA_EMBED_SYMBOL_FONT)
+    ImFontConfig *cfg = face_config(embolden);
+    cfg->MergeMode = true;
+    /* The array has static storage; the atlas must not free it. */
+    cfg->FontDataOwnedByAtlas = false;
+    cfg->DstFont = dst;
+    ImFontAtlas_AddFontFromMemoryTTF(atlas, (void *)vidya_symbol_font,
+                                     (int)vidya_symbol_font_size, size, cfg,
+                                     NULL);
+    ImFontConfig_destroy(cfg);
+#else
+    (void)atlas;
+    (void)dst;
+    (void)size;
+    (void)embolden;
+#endif
+}
+
+static ImFont *add_face(ImFontAtlas *atlas, const char *path, float size,
+                        int embolden) {
+    ImFontConfig *cfg = face_config(embolden);
+    ImFont *font = ImFontAtlas_AddFontFromFileTTF(atlas, path, size, cfg, NULL);
+    ImFontConfig_destroy(cfg);
+    if (font) merge_symbol_face(atlas, font, size, embolden);
+    return font;
+}
+
+#if defined(IMGUI_ENABLE_FREETYPE)
+static unsigned int be16(const unsigned char *p) {
+    return ((unsigned int)p[0] << 8) | p[1];
+}
+
+static unsigned int be32(const unsigned char *p) {
+    return ((unsigned int)p[0] << 24) | ((unsigned int)p[1] << 16) |
+           ((unsigned int)p[2] << 8) | p[3];
+}
+
+/* One-based index of the bold named instance of a variable font, or 0 when the
+ * file has no weight axis or no instance near bold. GNOME's interface fonts
+ * (Adwaita Sans, Cantarell) ship every weight in one variable file, so without
+ * this a heading would have to be a synthetic embolden, which barely reads as
+ * bold at UI sizes. Layout is `fvar` from the OpenType specification. */
+static unsigned int bold_instance(const unsigned char *data, unsigned int size) {
+    if (size < 12) return 0;
+    unsigned int table_count = be16(data + 4);
+    unsigned int fvar = 0;
+    for (unsigned int i = 0; i < table_count; i++) {
+        unsigned int entry = 12 + 16 * i;
+        if (entry + 16 > size) return 0;
+        if (memcmp(data + entry, "fvar", 4) == 0) {
+            fvar = be32(data + entry + 8);
+            break;
+        }
     }
+    /* Bound every array up front, so the reads below need no further checks.
+     * Counts and sizes are 16 bit, so their products cannot overflow. */
+    if (fvar == 0 || fvar > size || size - fvar < 16) return 0;
+
+    unsigned int axes = fvar + be16(data + fvar + 4);
+    unsigned int axis_count = be16(data + fvar + 8);
+    unsigned int axis_size = be16(data + fvar + 10);
+    unsigned int instance_count = be16(data + fvar + 12);
+    unsigned int instance_size = be16(data + fvar + 14);
+    if (axis_count == 0 || axis_size < 20 ||
+        instance_size < 4 + 4 * axis_count) return 0;
+    if (axes > size || size - axes < axis_count * axis_size) return 0;
+    unsigned int instances = axes + axis_count * axis_size;
+    if (size - instances < instance_count * instance_size) return 0;
+
+    unsigned int weight_axis = axis_count;
+    for (unsigned int i = 0; i < axis_count; i++) {
+        if (memcmp(data + axes + i * axis_size, "wght", 4) == 0) {
+            weight_axis = i;
+            break;
+        }
+    }
+    if (weight_axis == axis_count) return 0;
+
+    unsigned int closest = 0;
+    unsigned int closest_distance = 0;
+    for (unsigned int i = 0; i < instance_count; i++) {
+        unsigned int instance = instances + i * instance_size;
+        /* subfamilyNameID, flags, then one 16.16 coordinate per axis. */
+        unsigned int weight =
+            be32(data + instance + 4 + 4 * weight_axis) >> 16;
+        unsigned int distance = weight > 700 ? weight - 700 : 700 - weight;
+        if (closest == 0 || distance < closest_distance) {
+            closest = i + 1; /* FreeType numbers named instances from one. */
+            closest_distance = distance;
+        }
+    }
+    /* A family whose heaviest instance is semibold or lighter has no bold. */
+    return closest_distance <= 100 ? closest : 0;
+}
+#endif
+
+/* Register the bold named instance of a variable font. FreeType selects one
+ * through the high half of the face index, which is what FontNo becomes. */
+static ImFont *add_variable_bold(ImFontAtlas *atlas, const char *path,
+                                 float size) {
+#if defined(IMGUI_ENABLE_FREETYPE)
+    int bytes = 0;
+    unsigned char *data = LoadFileData(path, &bytes);
+    if (!data || bytes <= 0) {
+        if (data) UnloadFileData(data);
+        return NULL;
+    }
+    unsigned int instance = bold_instance(data, (unsigned int)bytes);
+    UnloadFileData(data);
+    if (instance == 0) return NULL;
+
+    ImFontConfig *cfg = face_config(0);
+    cfg->FontNo = instance << 16;
+    ImFont *font = ImFontAtlas_AddFontFromFileTTF(atlas, path, size, cfg, NULL);
+    ImFontConfig_destroy(cfg);
+    if (font) merge_symbol_face(atlas, font, size, 0);
+    return font;
+#else
+    (void)atlas;
+    (void)path;
+    (void)size;
     return NULL;
+#endif
+}
+
+/* Heading weight, best source first: a bold file, the bold instance of a
+ * variable file, then a synthetic embolden of the regular face. */
+static ImFont *add_bold_face(ImFontAtlas *atlas, const char *regular,
+                             const char *bold, float size) {
+    ImFont *font = NULL;
+    if (bold && FileExists(bold)) font = add_face(atlas, bold, size, 0);
+    if (!font) font = add_variable_bold(atlas, regular, size);
+    if (!font) font = add_face(atlas, regular, size, 1);
+    return font;
+}
+
+static const VidyaFontFamily *first_family(void) {
+    int count = (int)(sizeof(ui_families) / sizeof(ui_families[0]));
+    const VidyaFontFamily *fallback = NULL;
+    for (int i = 0; i < count; i++) {
+        const VidyaFontFamily *family = &ui_families[i];
+        if (!FileExists(family->regular)) continue;
+        if (!fallback) fallback = family;
+#if !defined(IMGUI_ENABLE_FREETYPE)
+        /* stb_truetype offers neither variable instances nor a synthetic bold,
+         * so a single-weight family there would flatten every heading. */
+        if (!family->bold || !FileExists(family->bold)) continue;
+#endif
+        return family;
+    }
+    return fallback;
 }
 
 static void load_fonts(void) {
-    static const char *regular[] = {
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    };
-    static const char *bold[] = {
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-M.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    };
     ImGuiIO *io = igGetIO_Nil();
-    const char *regular_path =
-        first_font(regular, (int)(sizeof(regular) / sizeof(regular[0])));
-    const char *bold_path =
-        first_font(bold, (int)(sizeof(bold) / sizeof(bold[0])));
-    if (regular_path) {
-        font_body = ImFontAtlas_AddFontFromFileTTF(
-            io->Fonts, regular_path, 16, NULL, NULL);
-    }
-    if (bold_path) {
-        font_heading = ImFontAtlas_AddFontFromFileTTF(
-            io->Fonts, bold_path, 18, NULL, NULL);
+    const float body_size = VIDYA_BODY_SIZE * ui_scale;
+    const float heading_size = VIDYA_HEADING_SIZE * ui_scale;
+    const VidyaFontFamily *family = first_family();
+
+    if (family) {
+        font_body = add_face(io->Fonts, family->regular, body_size, 0);
+        /* A regular that would not load makes its bold moot as well. */
+        if (font_body) {
+            font_heading = add_bold_face(io->Fonts, family->regular,
+                                         family->bold, heading_size);
+        }
     }
     if (!font_body) {
-#if defined(__ANDROID__)
-        ImFontConfig *config = ImFontConfig_ImFontConfig();
-        config->SizePixels = 16 * ui_scale;
-        font_body = ImFontAtlas_AddFontDefault(io->Fonts, config);
-        ImFontConfig_destroy(config);
-#else
-        font_body = ImFontAtlas_AddFontDefault(io->Fonts, NULL);
-#endif
+        /* The vector default rather than the 13px bitmap one: headings and the
+         * Android scale factor both need a face that scales. */
+        ImFontConfig *cfg = ImFontConfig_ImFontConfig();
+        cfg->SizePixels = body_size;
+        font_body = ImFontAtlas_AddFontDefaultVector(io->Fonts, cfg);
+        ImFontConfig_destroy(cfg);
     }
     if (!font_heading) font_heading = font_body;
     io->FontDefault = font_body;
@@ -137,8 +361,16 @@ int vidya_open(int width, int height, const char *title) {
     width = 720;
     height = 1600;
 #endif
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT |
-                   FLAG_MSAA_4X_HINT);
+    unsigned int flags =
+        FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT;
+#if !defined(__ANDROID__)
+    /* Give the window a framebuffer at the monitor's real pixel density.
+     * rlImGui forwards that scale as io.DisplayFramebufferScale, which is what
+     * Dear ImGui bakes glyphs at, so HiDPI text is rasterized rather than
+     * magnified. Layout stays in logical units either way. */
+    flags |= FLAG_WINDOW_HIGHDPI;
+#endif
+    SetConfigFlags(flags);
     InitWindow(width, height, title ? title : "Vidya");
     if (!IsWindowReady()) return 0;
     SetExitKey(KEY_NULL);
@@ -164,11 +396,23 @@ void vidya_set_mode(int value) {
 int vidya_get_mode(void) { return mode; }
 
 int vidya_load_font(const char *path, int atlas_size) {
-    (void)path;
+    /* atlas_size is a rasterization hint for the direct backend's fixed atlas.
+     * Dear ImGui bakes each size on demand, so it is ignored here and the
+     * semantic type scale is preserved. */
     (void)atlas_size;
-    /* Dear ImGui's atlas is uploaded during setup. Runtime replacement will be
-     * added with atlas rebuild support; platform fonts are loaded at open. */
-    return 0;
+    if (!IsWindowReady() || !path || !FileExists(path)) return 0;
+    ImGuiIO *io = igGetIO_Nil();
+    ImFont *body =
+        add_face(io->Fonts, path, VIDYA_BODY_SIZE * ui_scale, 0);
+    if (!body) return 0;
+    /* Headings come from this file too rather than keeping a bold belonging to
+     * the family it replaced. */
+    ImFont *heading =
+        add_bold_face(io->Fonts, path, NULL, VIDYA_HEADING_SIZE * ui_scale);
+    font_body = body;
+    font_heading = heading ? heading : body;
+    io->FontDefault = font_body;
+    return 1;
 }
 
 void vidya_begin_frame(void) {

@@ -23,6 +23,8 @@ State belongs to the Jolt application. Controls report events during the frame;
 the caller updates atoms or other application state and redraws it next frame.
 The C layer never retains Jolt strings or callbacks.
 
-The default backend is cimgui/Dear ImGui rendered through raylib. Static Ubuntu
-fonts are preferred when installed, with DejaVu Sans as the portable system
-fallback.
+The default backend is cimgui/Dear ImGui rendered through raylib. It prefers
+Ubuntu and falls back through GNOME's fonts, the common distribution defaults,
+and the system fonts of macOS, Windows, and Android; `load-font!` replaces that
+choice. Glyphs are rasterized by FreeType when the build has it. See
+`../raylib/README.md` for the whole text pipeline.

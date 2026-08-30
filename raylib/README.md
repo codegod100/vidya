@@ -8,9 +8,37 @@ The API is immediate-mode: call `vidya_begin_frame`, submit the page and its
 controls in visual order, then call `vidya_end_frame`. Application state remains
 owned by the caller.
 
-The cimgui backend prefers static Ubuntu fonts and falls back to DejaVu Sans. It
-uses separate regular and bold fonts, and Dear ImGui owns rasterization,
-anti-aliasing, focus, clipping, and control interaction.
+Dear ImGui owns rasterization, anti-aliasing, focus, clipping, and control
+interaction.
+
+## Text
+
+The cimgui backend picks one interface family for both weights, so headings
+never switch typeface. It prefers Ubuntu, the family the egui implementation
+ships, and then searches GNOME's fonts, the common distribution defaults, and
+the system fonts of macOS, Windows, and Android. Families that install a single
+variable file, as Adwaita Sans and Cantarell do, have their bold named instance
+selected rather than being synthetically emboldened.
+
+The DejaVu subset in `assets/vidya-symbols.ttf` is embedded in the library and
+merged behind the interface font, so arrows, bullets, curly quotes, box drawing,
+and math-in-prose keep rendering when that font has no glyph for them. This
+matches `src/fonts.rs` in the egui implementation.
+
+Glyphs are rasterized by FreeType with light hinting, which is what desktop
+toolkits use for interface text. Configure with `-DVIDYA_FREETYPE=OFF`, or build
+where FreeType is absent, and cimgui keeps Dear ImGui's bundled stb_truetype;
+that build also skips single-weight families, because stb_truetype offers
+neither variable instances nor a synthetic bold.
+
+Windows are created with `FLAG_WINDOW_HIGHDPI`. rlImGui reports the resulting
+scale as `io.DisplayFramebufferScale`, which Dear ImGui bakes glyphs at, so
+HiDPI text is rasterized at the physical resolution instead of magnified.
+Layout stays in logical units.
+
+`vidya_load_font` replaces the interface font at runtime. Dear ImGui bakes each
+size on demand, so its `atlas_size` argument — a rasterization hint for the
+direct backend's fixed atlas — is ignored here.
 
 ## Build
 

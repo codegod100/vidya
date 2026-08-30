@@ -19,6 +19,7 @@ set(VIDYA_JOLT_BOOT_OBJECT "" CACHE FILEPATH "ARM64 ELF object containing jolt.b
 set(VIDYA_CHEZ_ANDROID "" CACHE PATH "Chez tarm64le build root")
 set(VIDYA_BACKEND "cimgui" CACHE STRING "UI backend: cimgui or direct")
 set_property(CACHE VIDYA_BACKEND PROPERTY STRINGS cimgui direct)
+option(VIDYA_FREETYPE "Rasterize Dear ImGui glyphs with FreeType" ON)
 
 find_package(raylib 5.0 QUIET)
 if(NOT raylib_FOUND AND VIDYA_FETCH_RAYLIB)
@@ -51,6 +52,32 @@ if(VIDYA_BACKEND STREQUAL "cimgui")
   include(FetchContent)
   set(IMGUI_STATIC yes CACHE STRING "" FORCE)
   set(CIMGUI_TEST no CACHE STRING "" FORCE)
+  # FreeType rasterizes UI text noticeably better than Dear ImGui's bundled
+  # stb_truetype, and it is what lets the backend hint glyphs the way desktop
+  # toolkits do. It is optional: without it cimgui keeps its own rasterizer.
+  set(IMGUI_FREETYPE no CACHE STRING "" FORCE)
+  if(VIDYA_FREETYPE)
+    find_package(Freetype QUIET)
+    if(FREETYPE_FOUND)
+      # cimgui resolves the package as lower-case `freetype` and passes PATHS,
+      # which restricts the call to Config mode. FreeType does not always
+      # install a config package, so publish a shim that forwards to the result
+      # CMake's own FindFreetype module just produced.
+      set(VIDYA_FREETYPE_SHIM "${CMAKE_CURRENT_BINARY_DIR}/freetype-shim")
+      file(WRITE "${VIDYA_FREETYPE_SHIM}/freetype-config.cmake"
+"find_package(Freetype MODULE REQUIRED)
+if(NOT TARGET freetype)
+  add_library(freetype INTERFACE IMPORTED GLOBAL)
+  target_link_libraries(freetype INTERFACE Freetype::Freetype)
+endif()
+")
+      set(freetype_DIR "${VIDYA_FREETYPE_SHIM}" CACHE PATH "" FORCE)
+      set(IMGUI_FREETYPE yes CACHE STRING "" FORCE)
+    else()
+      message(STATUS
+        "Vidya: FreeType not found, falling back to the stb_truetype rasterizer")
+    endif()
+  endif()
   FetchContent_Declare(
     cimgui
     GIT_REPOSITORY https://github.com/cimgui/cimgui.git
@@ -94,6 +121,31 @@ if(VIDYA_BACKEND STREQUAL "cimgui")
     ${cimgui_SOURCE_DIR}/imgui)
   target_link_libraries(rlimgui PUBLIC raylib cimgui)
   set(VIDYA_SOURCE src/vidya_cimgui.c)
+
+  # Interface fonts cover Latin text and little else, so the same DejaVu subset
+  # the egui implementation embeds is merged behind them for arrows, bullets,
+  # curly quotes, box drawing, and math-in-prose. Embedded rather than read from
+  # disk because Android ships no such asset directory.
+  set(VIDYA_SYMBOL_FONT "${CMAKE_CURRENT_SOURCE_DIR}/../assets/vidya-symbols.ttf")
+  if(EXISTS "${VIDYA_SYMBOL_FONT}")
+    set(VIDYA_SYMBOL_FONT_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/vidya_symbol_font.c")
+    set(VIDYA_EMBED_ASSET_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_asset.cmake")
+    add_custom_command(
+      OUTPUT "${VIDYA_SYMBOL_FONT_SOURCE}"
+      COMMAND "${CMAKE_COMMAND}"
+        "-DASSET=${VIDYA_SYMBOL_FONT}"
+        "-DOUTPUT=${VIDYA_SYMBOL_FONT_SOURCE}"
+        "-DSYMBOL=vidya_symbol_font"
+        -P "${VIDYA_EMBED_ASSET_SCRIPT}"
+      DEPENDS "${VIDYA_SYMBOL_FONT}" "${VIDYA_EMBED_ASSET_SCRIPT}"
+      COMMENT "Embedding vidya-symbols.ttf"
+      VERBATIM)
+    list(APPEND VIDYA_SOURCE "${VIDYA_SYMBOL_FONT_SOURCE}")
+  else()
+    message(STATUS
+      "Vidya: assets/vidya-symbols.ttf not found, symbol fallback disabled")
+    unset(VIDYA_SYMBOL_FONT_SOURCE)
+  endif()
 elseif(VIDYA_BACKEND STREQUAL "direct")
   set(VIDYA_SOURCE src/vidya.c)
 else()
@@ -116,6 +168,9 @@ if(VIDYA_BACKEND STREQUAL "cimgui")
     ${cimgui_SOURCE_DIR}
     ${rlimgui_source_SOURCE_DIR})
   target_link_libraries(vidya PRIVATE cimgui rlimgui)
+  if(VIDYA_SYMBOL_FONT_SOURCE)
+    target_compile_definitions(vidya PRIVATE VIDYA_EMBED_SYMBOL_FONT)
+  endif()
 endif()
 target_compile_features(vidya PUBLIC c_std_99)
 set_target_properties(vidya PROPERTIES
