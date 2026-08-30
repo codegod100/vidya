@@ -601,10 +601,22 @@ impl Tree {
                         Vec2::new(ui.spacing().item_spacing.x, spacing)
                     };
                     if horizontal {
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing = axis;
-                            tree.paint_children(id, ui, theme);
-                        });
+                        // `:align :end` lays the row out from the right edge of
+                        // the space it is given, which is how a trailing group
+                        // — an action beside a message, a count beside a name —
+                        // sits against the right of a row rather than trailing
+                        // whatever came before it.
+                        if props.str("align") == "end" {
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                ui.spacing_mut().item_spacing = axis;
+                                tree.paint_children(id, ui, theme);
+                            });
+                        } else {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.spacing_mut().item_spacing = axis;
+                                tree.paint_children(id, ui, theme);
+                            });
+                        }
                     } else {
                         ui.with_layout(Layout::top_down(Align::Min), |ui| {
                             ui.spacing_mut().item_spacing = axis;
