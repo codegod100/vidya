@@ -18,6 +18,8 @@
 //! Panics are caught at the boundary: unwinding into a C or Chez caller would
 //! be undefined behaviour.
 
+#[cfg(target_os = "android")]
+mod android;
 mod app;
 mod tree;
 mod ui;

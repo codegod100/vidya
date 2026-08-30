@@ -1,5 +1,5 @@
 (ns vidya.examples.control-center
-  "A small stateful desktop application built with Jolt, Vidya, and raylib."
+  "A small stateful application built with Jolt and Vidya."
   (:require [vidya.core :as ui]))
 
 (def defaults
@@ -82,7 +82,7 @@
 
 (defn render []
   (ui/title! "Control Center")
-  (ui/dim-label! "A stateful Jolt app rendered by Vidya on raylib")
+  (ui/dim-label! "A stateful Jolt app rendered by Vidya")
   (ui/gap! 12.0)
   (connection-card)
   (ui/gap! 6.0)

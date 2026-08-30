@@ -32,6 +32,10 @@ rust_library(
     crate_root = "ffi/src/lib.rs",
     edition = "2021",
     preferred_linkage = "shared",
+    # Without this buck names the library after the target — lib_vidya-ffi.so —
+    # and that name, not the filename, is what the linker writes into a
+    # dependent's DT_NEEDED. Every consumer looks for `libvidya`.
+    soname = "libvidya.so",
     visibility = ["PUBLIC"],
     # Cargo renames the dependency so the cdylib itself can keep the `vidya`
     # crate name; mirror that here.

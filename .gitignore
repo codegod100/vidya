@@ -8,7 +8,7 @@
 /jolt/imgui.ini
 /raylib/build
 /raylib/build-*
-/raylib/android/build
+/android/build
 /result
 /result-*
 /demo

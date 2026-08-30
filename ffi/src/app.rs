@@ -69,7 +69,23 @@ fn build_event_loop() -> Result<EventLoop<()>, String> {
         .map_err(|e| format!("event loop: {e}"))
 }
 
-#[cfg(not(all(unix, not(target_os = "macos"), not(target_os = "android"))))]
+/// Android has no display connection to choose: the activity already owns one,
+/// and winit reaches it through the handle the glue was started with. Without
+/// that handle there is no event loop to build at all, which is why
+/// `libvidya.so` is the NativeActivity's own library — see `android.rs`.
+#[cfg(target_os = "android")]
+fn build_event_loop() -> Result<EventLoop<()>, String> {
+    use winit::platform::android::EventLoopBuilderExtAndroid as _;
+
+    let app = crate::android::android_app()
+        .ok_or_else(|| "no AndroidApp: vidya_open ran outside android_main".to_owned())?;
+    EventLoop::builder()
+        .with_android_app(app)
+        .build()
+        .map_err(|e| format!("event loop: {e}"))
+}
+
+#[cfg(not(all(unix, not(target_os = "macos"))))]
 fn build_event_loop() -> Result<EventLoop<()>, String> {
     EventLoop::builder()
         .build()
