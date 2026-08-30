@@ -1,0 +1,3 @@
+#!/bin/sh
+# Link with zig's bundled glibc sysroot when the host has no C toolchain.
+exec zig cc "$@"
