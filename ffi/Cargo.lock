@@ -2151,6 +2151,7 @@ dependencies = [
  "glow",
  "glutin",
  "glutin-winit",
+ "png 0.17.16",
  "vidya",
  "winit",
 ]

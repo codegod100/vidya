@@ -30,7 +30,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use egui::{Align, Layout, Margin, Ui, Vec2};
+use egui::{Align, Layout, Margin, TextureOptions, Ui, Vec2};
 use vidya_core::Theme;
 
 /// A prop value. The three types the ABI can carry, and all glimmer needs:
@@ -64,6 +64,7 @@ pub enum Tag {
     Spacer,
     Progress,
     Spinner,
+    Image,
     Status,
     Unknown,
 }
@@ -90,6 +91,7 @@ impl Tag {
             "spacer" | "gap" => Self::Spacer,
             "progress" => Self::Progress,
             "spinner" => Self::Spinner,
+            "image" => Self::Image,
             "status" => Self::Status,
             _ => Self::Unknown,
         }
@@ -116,6 +118,7 @@ impl Tag {
             Self::Spacer => "spacer",
             Self::Progress => "progress",
             Self::Spinner => "spinner",
+            Self::Image => "image",
             Self::Status => "status",
             Self::Unknown => "",
         }
@@ -160,10 +163,54 @@ pub struct Tree {
     nodes: Vec<Option<Node>>,
     free: Vec<u32>,
     root: u32,
+    /// Decoded images, by the path they came from. An `:image` node is walked
+    /// every frame and must not decode a file every time.
+    textures: HashMap<String, Option<egui::TextureHandle>>,
     pending: VecDeque<Event>,
     /// The event most recently dequeued by `poll`, whose fields the accessors
     /// read. Held here so the ABI can return a payload without out-parameters.
     current: Option<Event>,
+}
+
+impl Tree {
+    /// The texture for a file, decoding it the first time it is asked for.
+    /// A file that will not decode is remembered as such, so a bad path costs
+    /// one failed read rather than one per frame.
+    fn texture(&mut self, ui: &Ui, path: &str) -> Option<egui::TextureHandle> {
+        if let Some(cached) = self.textures.get(path) {
+            return cached.clone();
+        }
+        let handle = std::fs::read(path)
+            .ok()
+            .and_then(|bytes| decode_png_rgba(&bytes))
+            .map(|image| {
+                ui.ctx()
+                    .load_texture(format!("vidya/tree/{path}"), image, TextureOptions::LINEAR)
+            });
+        self.textures.insert(path.to_owned(), handle.clone());
+        handle
+    }
+}
+
+/// PNG bytes as an egui image. PNG alone: it is what the vendored decoder
+/// reads, and what the media this paints is served as.
+fn decode_png_rgba(bytes: &[u8]) -> Option<egui::ColorImage> {
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::ALPHA);
+    let mut reader = decoder.read_info().ok()?;
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).ok()?;
+    let (w, h) = (info.width as usize, info.height as usize);
+    let raw = &buf[..info.buffer_size()];
+    let rgba: Vec<u8> = match info.color_type {
+        png::ColorType::Rgba => raw.to_vec(),
+        png::ColorType::Rgb => raw
+            .chunks_exact(3)
+            .flat_map(|c| [c[0], c[1], c[2], 255])
+            .collect(),
+        _ => return None,
+    };
+    (rgba.len() == w * h * 4).then(|| egui::ColorImage::from_rgba_unmultiplied([w, h], &rgba))
 }
 
 impl Default for Tree {
@@ -172,6 +219,7 @@ impl Default for Tree {
             nodes: Vec::new(),
             free: Vec::new(),
             root: 0,
+            textures: HashMap::new(),
             pending: VecDeque::new(),
             current: None,
         };
@@ -651,6 +699,35 @@ impl Tree {
                     bar = bar.text(props.label());
                 }
                 ui.add(bar);
+            }
+
+            // A picture from a file the caller has already fetched. Decoded
+            // once and kept as a texture: the tree is walked every frame, and
+            // decoding a PNG sixty times a second is not a thing to do.
+            Tag::Image => {
+                let path = props.str("src").to_owned();
+                if path.is_empty() {
+                    return;
+                }
+                let max_height = props.num("max-height", 240.0) as f32;
+                let max_width = props.num("max-width", 0.0) as f32;
+                let Some(texture) = self.texture(ui, &path) else {
+                    // A file that will not decode is not worth a broken-image
+                    // glyph; the message text beside it already says what it
+                    // was meant to be.
+                    return;
+                };
+                let size = texture.size_vec2();
+                let avail = if max_width > 0.0 {
+                    max_width.min(ui.available_width())
+                } else {
+                    ui.available_width()
+                };
+                let scale = (avail / size.x).min(max_height / size.y).min(1.0);
+                ui.add(
+                    egui::Image::new(egui::load::SizedTexture::new(texture.id(), size * scale))
+                        .corner_radius(theme.spacing.radius_sm),
+                );
             }
 
             Tag::Spinner => {

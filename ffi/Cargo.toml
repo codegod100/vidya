@@ -26,6 +26,8 @@ egui = { version = "0.31", features = ["default_fonts"] }
 egui-winit = "0.31"
 egui_glow = "0.31"
 glow = "0.16"
+# Decoding the images an `:image` node paints.
+png = "0.17"
 glutin = "0.32"
 glutin-winit = "0.5"
 winit = "0.30"
