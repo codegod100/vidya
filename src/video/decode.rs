@@ -72,7 +72,14 @@ impl DecodeSession {
             let sample_count = track.sample_count();
             let timescale = track.timescale().max(1);
             let duration_secs = track.duration();
-            (track_id, width, height, sample_count, timescale, duration_secs)
+            (
+                track_id,
+                width,
+                height,
+                sample_count,
+                timescale,
+                duration_secs,
+            )
         };
 
         if sample_count == 0 || width == 0 || height == 0 {

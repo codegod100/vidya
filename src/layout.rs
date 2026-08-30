@@ -616,12 +616,7 @@ pub fn grid_cols_with(
 }
 
 /// Grid with all-flex columns. Prefer [`grid_cols`] when you have metrics.
-pub fn grid(
-    ui: &mut Ui,
-    theme: &Theme,
-    id: impl Hash,
-    add: impl FnOnce(&mut GridCtx<'_, '_>),
-) {
+pub fn grid(ui: &mut Ui, theme: &Theme, id: impl Hash, add: impl FnOnce(&mut GridCtx<'_, '_>)) {
     grid_cols(ui, theme, id, &[], add);
 }
 
@@ -995,7 +990,9 @@ mod tests {
                 METRIC_RATE_CHARS,
                 "metric_rate({rate}) = {s:?}"
             );
-            assert!(s.contains(format_rate(rate).as_str()) || s.ends_with(format_rate(rate).as_str()));
+            assert!(
+                s.contains(format_rate(rate).as_str()) || s.ends_with(format_rate(rate).as_str())
+            );
         }
     }
 
@@ -1027,8 +1024,7 @@ mod tests {
         for bps in [0.0, 1.0, 512.0, 1024.0 * 50.0, 1024.0 * 1024.0 * 9.9] {
             let s = metric_bps(bps);
             assert!(
-                s.chars().count() <= METRIC_BPS_CHARS
-                    || s.chars().count() == METRIC_BPS_CHARS,
+                s.chars().count() <= METRIC_BPS_CHARS || s.chars().count() == METRIC_BPS_CHARS,
                 "unexpected width for {s:?}"
             );
             assert_eq!(s.chars().count(), METRIC_BPS_CHARS);

@@ -63,11 +63,11 @@ pub use app_icon::{
     icon_data_from_png, try_with_app_icon, try_with_app_icon_id, with_app_icon, with_app_icon_id,
     AppIconError,
 };
+#[cfg(target_os = "android")]
+pub use chrome::sync_system_chrome_from_android;
 pub use chrome::{
     dialog, reserve_system_chrome, set_system_chrome, system_chrome, top_header, SystemChrome,
 };
-#[cfg(target_os = "android")]
-pub use chrome::sync_system_chrome_from_android;
 pub use fonts::install_symbol_font;
 pub use hotkeys::{
     command_glyph, command_pressed, command_shift_shortcut_label, command_shortcut_label,
@@ -76,7 +76,7 @@ pub use hotkeys::{
 pub use icons::{
     emoji_icon, emoji_icon_colored, emoji_pack_len, has_emoji_icon, icon, icon_colored,
     icon_for_emoji, normalize_emoji, paint_emoji_in, paint_icon, paint_icon_in, reaction_chip,
-    twemoji_key, Icon,
+    reaction_chip_sized, twemoji_key, Icon,
 };
 pub use layout::{
     card, card_frame_chrome_x, central_page, central_page_cols, compact_card, data_table,

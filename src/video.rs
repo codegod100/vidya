@@ -267,9 +267,7 @@ pub fn video_player(
     } else {
         (16.0, 9.0)
     };
-    let height = (max_w * src_h / src_w)
-        .min(opts.max_height)
-        .max(72.0);
+    let height = (max_w * src_h / src_w).min(opts.max_height).max(72.0);
     let size = Vec2::new(max_w, height);
 
     let mut action = VideoPlayerAction::None;

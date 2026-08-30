@@ -610,9 +610,16 @@ impl Tree {
                         // sits against the right of a row rather than trailing
                         // whatever came before it.
                         if props.str("align") == "end" {
-                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                ui.spacing_mut().item_spacing = axis;
-                                tree.paint_children(id, ui, theme);
+                            // Nested in a row of its own: a right-to-left
+                            // layout takes the height available to it, which
+                            // in a column is everything below — every such row
+                            // would be as tall as the rest of the screen, and
+                            // the gaps would land between the rows above it.
+                            ui.horizontal(|ui| {
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.spacing_mut().item_spacing = axis;
+                                    tree.paint_children(id, ui, theme);
+                                });
                             });
                         } else {
                             ui.horizontal_wrapped(|ui| {
@@ -959,7 +966,13 @@ impl Tree {
                 };
                 let count = props.num("count", 0.0).max(0.0) as usize;
                 let mine = props.bool("mine", false);
-                let response = vidya_core::reaction_chip(ui, theme, &emoji, count, mine);
+                // `:size` is the glyph's, and the pill is sized from it.
+                let size = props.num("size", 0.0) as f32;
+                let response = if size > 0.0 {
+                    vidya_core::reaction_chip_sized(ui, theme, &emoji, count, mine, size)
+                } else {
+                    vidya_core::reaction_chip(ui, theme, &emoji, count, mine)
+                };
                 if response.clicked() {
                     self.emit(id, "click", emoji, count as f64);
                 }

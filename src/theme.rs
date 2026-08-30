@@ -285,7 +285,10 @@ impl Theme {
     pub fn header_frame(&self) -> Frame {
         Frame::new()
             .fill(self.palette.headerbar_bg)
-            .inner_margin(Margin::symmetric(self.spacing.page as i8, self.spacing.md as i8))
+            .inner_margin(Margin::symmetric(
+                self.spacing.page as i8,
+                self.spacing.md as i8,
+            ))
             .stroke(Stroke::new(1.0_f32, self.palette.border_soft))
     }
 
@@ -465,7 +468,9 @@ pub fn checkbox(ui: &mut Ui, theme: &Theme, checked: &mut bool, text: &str) -> R
         )
     });
 
-    let height = box_size.max(galley.size().y + 4.0).max(sp.control_height * 0.85);
+    let height = box_size
+        .max(galley.size().y + 4.0)
+        .max(sp.control_height * 0.85);
     let width = box_size + gap + galley.size().x;
     let (rect, mut response) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
 
@@ -473,7 +478,9 @@ pub fn checkbox(ui: &mut Ui, theme: &Theme, checked: &mut bool, text: &str) -> R
         *checked = !*checked;
         response.mark_changed();
     }
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), *checked, text));
+    response.widget_info(|| {
+        WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), *checked, text)
+    });
     // Custom widget — egui only applies `interact_cursor` on stock `Button`.
     if let Some(cursor) = ui.visuals().interact_cursor {
         response = response.on_hover_cursor(cursor);
@@ -541,11 +548,7 @@ pub fn status_dot(ui: &mut Ui, theme: &Theme, live: bool) -> Response {
     if ui.is_rect_visible(rect) {
         let center = pos2(rect.center().x, rect.center().y);
         let radius = diameter * 0.5;
-        let color = if live {
-            p.success
-        } else {
-            p.text_secondary
-        };
+        let color = if live { p.success } else { p.text_secondary };
         let painter = ui.painter();
         if live {
             painter.circle_filled(center, radius, color);
@@ -607,11 +610,7 @@ pub fn dim_label(ui: &mut Ui, theme: &Theme, text: &str) {
 ///
 /// Desired width tracks the parent residual so the field fills its slot
 /// instead of requesting a fixed 280px and clipping siblings off-screen.
-pub fn text_field_singleline(
-    ui: &mut Ui,
-    theme: &Theme,
-    text: &mut dyn TextBuffer,
-) -> Response {
+pub fn text_field_singleline(ui: &mut Ui, theme: &Theme, text: &mut dyn TextBuffer) -> Response {
     let w = ui.available_width().max(1.0);
     ui.add(
         TextEdit::singleline(text)

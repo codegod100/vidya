@@ -203,7 +203,10 @@ fn twemoji_key_candidates(emoji: &str) -> Vec<String> {
     push(twemoji_key(trimmed));
 
     // Always also try VS-stripped form (covers assets that omit FE0F).
-    let no_vs: String = trimmed.chars().filter(|&c| c != VS16 && c != VS15).collect();
+    let no_vs: String = trimmed
+        .chars()
+        .filter(|&c| c != VS16 && c != VS15)
+        .collect();
     push(twemoji_key(&no_vs));
     // Force “no ZWJ rule” key on the raw string by stripping VS.
     push(
@@ -218,7 +221,10 @@ fn twemoji_key_candidates(emoji: &str) -> Vec<String> {
     let no_skin = strip_skin_tones(trimmed);
     if no_skin != trimmed {
         push(twemoji_key(&no_skin));
-        let no_skin_vs: String = no_skin.chars().filter(|&c| c != VS16 && c != VS15).collect();
+        let no_skin_vs: String = no_skin
+            .chars()
+            .filter(|&c| c != VS16 && c != VS15)
+            .collect();
         push(twemoji_key(&no_skin_vs));
     }
 
@@ -350,7 +356,7 @@ pub fn paint_emoji_in(ui: &Ui, rect: Rect, emoji: &str, color: Color32) {
     );
 }
 
-/// Themed reaction chip: color emoji + optional count.
+/// Themed reaction chip: color emoji + optional count, at the caption size.
 pub fn reaction_chip(
     ui: &mut Ui,
     theme: &Theme,
@@ -358,7 +364,25 @@ pub fn reaction_chip(
     count: usize,
     mine: bool,
 ) -> Response {
+    let icon_size = (theme.type_scale.caption * 1.25).max(16.0);
+    reaction_chip_sized(ui, theme, emoji, count, mine, icon_size)
+}
+
+/// Like [`reaction_chip`], with the glyph drawn at `icon_size` points.
+///
+/// The pill around it is sized from the glyph rather than from the theme, so a
+/// small chip is small all through instead of a small picture adrift in a
+/// caption-sized pill.
+pub fn reaction_chip_sized(
+    ui: &mut Ui,
+    theme: &Theme,
+    emoji: &str,
+    count: usize,
+    mine: bool,
+    icon_size: f32,
+) -> Response {
     let p = &theme.palette;
+    let icon_size = icon_size.max(8.0);
     let fill = if mine {
         p.accent.gamma_multiply(0.35)
     } else {
@@ -369,21 +393,22 @@ pub fn reaction_chip(
     } else {
         Stroke::new(1.0_f32, p.border_soft)
     };
-    let icon_size = (theme.type_scale.caption * 1.25).max(16.0);
-
     let inner = egui::Frame::new()
         .fill(fill)
         .stroke(border)
-        .corner_radius(12.0)
-        .inner_margin(egui::Margin::symmetric(8, 3))
+        .corner_radius(icon_size * 0.75)
+        .inner_margin(egui::Margin::symmetric(
+            (icon_size * 0.5) as i8,
+            (icon_size * 0.2) as i8,
+        ))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.spacing_mut().item_spacing.x = (icon_size * 0.25).max(2.0);
                 emoji_icon(ui, theme, emoji, icon_size);
                 if count > 1 {
                     ui.label(
                         egui::RichText::new(count.to_string())
-                            .size(theme.type_scale.caption)
+                            .size(theme.type_scale.caption.min(icon_size))
                             .color(p.text),
                     );
                 }
