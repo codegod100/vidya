@@ -1,6 +1,12 @@
+# Pinned tools come from DotSlash files in scripts/ (scripts/zig, scripts/sccache),
+# fetched and cached on first use; `dotslash` must be on PATH.
+#
 # This project links through `zig cc`, which bundles its own glibc sysroot, so
 # builds need no system C toolchain. Paths are relative to the directory cargo
 # runs in — the repo root, which is where `just` invokes it.
+[build]
+rustc-wrapper = "scripts/sccache"
+
 [env]
 CC = { value = "scripts/zcc", relative = true }
 

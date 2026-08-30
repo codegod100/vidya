@@ -1,0 +1,67 @@
+#!/usr/bin/env dotslash
+
+{
+  "name": "sccache",
+  "platforms": {
+    "linux-x86_64": {
+      "size": 9561816,
+      "hash": "sha256",
+      "digest": "67c4a96dd237c1f518f6b36083f270f9976d516f1e57fce891755ea782e50006",
+      "format": "tar.gz",
+      "path": "sccache-v0.17.0-x86_64-unknown-linux-musl/sccache",
+      "providers": [
+        {
+          "url": "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-x86_64-unknown-linux-musl.tar.gz"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 9265316,
+      "hash": "sha256",
+      "digest": "821a86343191aa1cbab74bd42f9e93c9a63bf85e4742945f40d3ae84193c1c77",
+      "format": "tar.gz",
+      "path": "sccache-v0.17.0-aarch64-unknown-linux-musl/sccache",
+      "providers": [
+        {
+          "url": "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-aarch64-unknown-linux-musl.tar.gz"
+        }
+      ]
+    },
+    "macos-x86_64": {
+      "size": 7101226,
+      "hash": "sha256",
+      "digest": "c2144cafbfe3d22e34ae637f9974ce53613543ac19477fdb287df22ea3668261",
+      "format": "tar.gz",
+      "path": "sccache-v0.17.0-x86_64-apple-darwin/sccache",
+      "providers": [
+        {
+          "url": "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-x86_64-apple-darwin.tar.gz"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 6595370,
+      "hash": "sha256",
+      "digest": "0c560bfba31aef5bdfb4fb3d2677f6e61d71c5c00952f2a83344f47aa31f00f1",
+      "format": "tar.gz",
+      "path": "sccache-v0.17.0-aarch64-apple-darwin/sccache",
+      "providers": [
+        {
+          "url": "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-aarch64-apple-darwin.tar.gz"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 7936022,
+      "hash": "sha256",
+      "digest": "e94cfc5b58cbe439302f586c1d1bd7980c2cd371d47bdf385ade657411e6f3ac",
+      "format": "zip",
+      "path": "sccache-v0.17.0-x86_64-pc-windows-msvc/sccache.exe",
+      "providers": [
+        {
+          "url": "https://github.com/mozilla/sccache/releases/download/v0.17.0/sccache-v0.17.0-x86_64-pc-windows-msvc.zip"
+        }
+      ]
+    }
+  }
+}
