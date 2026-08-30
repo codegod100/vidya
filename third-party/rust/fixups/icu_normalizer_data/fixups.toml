@@ -1,0 +1,16 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "data/mod.rs",
+    "data/normalizer_nfc_v1.rs.data",
+    "data/normalizer_nfd_data_v1.rs.data",
+    "data/normalizer_nfd_supplement_v1.rs.data",
+    "data/normalizer_nfd_tables_v1.rs.data",
+    "data/normalizer_nfkd_data_v1.rs.data",
+    "data/normalizer_nfkd_tables_v1.rs.data",
+    "data/normalizer_uts46_data_v1.rs.data",
+]
+
+# Run the crate build script (emits cfgs / OUT_DIR sources).
+[buildscript]
+run = true

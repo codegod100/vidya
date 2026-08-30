@@ -1,0 +1,7 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "tests/input-chunking-sensitivity-example1.zz",
+    "tests/input-chunking-sensitivity-example2.zz",
+    "tests/input-chunking-sensitivity-example3.zz",
+]

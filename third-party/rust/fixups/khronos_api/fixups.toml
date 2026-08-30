@@ -1,0 +1,16 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "api/xml/gl.xml",
+    "api/xml/glx.xml",
+    "api/xml/wgl.xml",
+    "api_angle/scripts/egl_angle_ext.xml",
+    "api_angle/scripts/gl_angle_ext.xml",
+    "api_egl/api/egl.xml",
+    "api_webgl/specs/latest/1.0/webgl.idl",
+    "api_webgl/specs/latest/2.0/webgl2.idl",
+]
+
+# Run the crate build script (emits cfgs / OUT_DIR sources).
+[buildscript]
+run = true

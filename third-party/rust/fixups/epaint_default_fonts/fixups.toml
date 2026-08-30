@@ -1,0 +1,8 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "fonts/Hack-Regular.ttf",
+    "fonts/NotoEmoji-Regular.ttf",
+    "fonts/Ubuntu-Light.ttf",
+    "fonts/emoji-icon-font.ttf",
+]

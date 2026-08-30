@@ -1,0 +1,20 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "benches/data/Carroll-11-ar.txt",
+    "benches/data/Carroll-11-de.txt",
+    "benches/data/Carroll-11-el.txt",
+    "benches/data/Carroll-11-es.txt",
+    "benches/data/Carroll-11-fr.txt",
+    "benches/data/Carroll-11-he.txt",
+    "benches/data/Carroll-11-pl.txt",
+    "benches/data/Carroll-11-ru.txt",
+    "benches/data/Carroll-11-th.txt",
+    "benches/data/Carroll-11-tr.txt",
+    "benches/data/TestNames_Japanese_h.txt",
+    "benches/data/TestNames_Japanese_k.txt",
+    "benches/data/TestNames_Korean.txt",
+    "benches/data/TestNames_Latin.txt",
+    "benches/data/wotw.txt",
+    "tests/data/NormalizationTest.txt",
+]

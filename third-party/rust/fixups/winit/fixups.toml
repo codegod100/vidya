@@ -1,0 +1,38 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "examples/data/cross.png",
+    "examples/data/cross2.png",
+    "examples/data/gradient.png",
+    "examples/data/icon.png",
+    "src/changelog/unreleased.md",
+    "src/changelog/v0.10.md",
+    "src/changelog/v0.11.md",
+    "src/changelog/v0.12.md",
+    "src/changelog/v0.13.md",
+    "src/changelog/v0.14.md",
+    "src/changelog/v0.15.md",
+    "src/changelog/v0.16.md",
+    "src/changelog/v0.17.md",
+    "src/changelog/v0.18.md",
+    "src/changelog/v0.19.md",
+    "src/changelog/v0.20.md",
+    "src/changelog/v0.21.md",
+    "src/changelog/v0.22.md",
+    "src/changelog/v0.23.md",
+    "src/changelog/v0.24.md",
+    "src/changelog/v0.25.md",
+    "src/changelog/v0.26.md",
+    "src/changelog/v0.27.md",
+    "src/changelog/v0.28.md",
+    "src/changelog/v0.29.md",
+    "src/changelog/v0.30.md",
+    "src/changelog/v0.8.md",
+    "src/changelog/v0.9.md",
+    "src/platform_impl/linux/x11/tests/xsettings.dat",
+    "src/platform_impl/web/web_sys/worker.min.js",
+]
+
+# Run the crate build script (emits cfgs / OUT_DIR sources).
+[buildscript]
+run = true

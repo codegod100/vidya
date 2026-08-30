@@ -1,0 +1,6 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "build-common.rs",
+    "no_atomic.rs",
+]

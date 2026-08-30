@@ -11,3 +11,7 @@
 /result
 /result-*
 /demo
+/buck-out
+/build
+/third-party/rust/vendor
+/third-party/rust/.cargo

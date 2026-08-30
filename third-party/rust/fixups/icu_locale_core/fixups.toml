@@ -1,0 +1,12 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "benches/fixtures/langid.json",
+    "benches/fixtures/locale.json",
+    "benches/fixtures/subtags.json",
+    "tests/fixtures/canonicalize.json",
+    "tests/fixtures/invalid-extensions.json",
+    "tests/fixtures/invalid.json",
+    "tests/fixtures/langid.json",
+    "tests/fixtures/locale.json",
+]

@@ -1,0 +1,7 @@
+# wayland-scanner proc macros read the protocol XML at compile time.
+extra_srcs = ["**/*.xml"]
+
+
+# Run the crate build script (emits cfgs / OUT_DIR sources).
+[buildscript]
+run = true

@@ -1,0 +1,21 @@
+# Files pulled in by include!/include_bytes!/include_str! that the
+# default source globs miss.
+extra_srcs = [
+    "CHANGELOG.md",
+    "examples/class_with_lifetime.rs",
+    "examples/encode_core_graphics.rs",
+    "examples/encode_nsstring.rs",
+    "examples/encode_nsuinteger.rs",
+    "examples/encode_opaque_type.rs",
+    "examples/introspection.rs",
+    "src/topics/about_generated/CHANGELOG.md",
+    "src/topics/about_generated/README.md",
+    "src/topics/about_generated/cargo_features.md",
+    "src/topics/about_generated/deref.md",
+    "src/topics/about_generated/list_data.md",
+    "src/topics/layered_safety.md",
+]
+
+# Run the crate build script (emits cfgs / OUT_DIR sources).
+[buildscript]
+run = true

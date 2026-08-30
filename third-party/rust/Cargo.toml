@@ -1,0 +1,21 @@
+# Third-party crates for the buck2 build. Reindeer vendors these and generates
+# third-party/rust/BUCK; the versions mirror the Cargo manifests they replace.
+[package]
+name = "rust-third-party"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+egui = { version = "0.31", features = ["default_fonts"] }
+egui-winit = "0.31"
+egui_glow = "0.31"
+glow = "0.16"
+glutin = "0.32"
+glutin-winit = "0.5"
+winit = "0.30"
+png = "0.17"
+zip = { version = "2", default-features = false, features = ["deflate"] }

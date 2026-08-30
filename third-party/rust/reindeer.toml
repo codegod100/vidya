@@ -1,0 +1,14 @@
+# Reindeer configuration for the buck2 third-party Rust crates.
+vendor = {}
+
+# Crates read CARGO_PKG_* at compile time; without this they fail to build.
+cargo_env = true
+
+[buck]
+file_name = "BUCK"
+buckfile_imports = """
+load("@prelude//rust:cargo_package.bzl", "cargo")
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+"""
+rust_library = "cargo.rust_library"
+rust_binary = "cargo.rust_binary"

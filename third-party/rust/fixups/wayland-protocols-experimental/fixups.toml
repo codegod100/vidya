@@ -1,0 +1,3 @@
+# wayland-scanner proc macros read the protocol XML at compile time.
+extra_srcs = ["**/*.xml"]
+

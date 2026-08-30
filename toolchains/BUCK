@@ -1,0 +1,35 @@
+load("@prelude//toolchains:cxx.bzl", "system_cxx_toolchain")
+load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
+load("@prelude//toolchains:python.bzl", "system_python_bootstrap_toolchain")
+load("@prelude//toolchains:rust.bzl", "system_rust_toolchain")
+
+# Tools come from the DotSlash files in scripts/, so the build depends on
+# pinned upstream releases rather than whatever the host happens to have.
+# The prelude's system toolchains resolve their tools through PATH, so buck2
+# must be invoked with scripts/ prepended — see the `buck` recipe in justfile.
+
+system_cxx_toolchain(
+    name = "cxx",
+    compiler = "scripts/zcc",
+    compiler_type = "clang",
+    cxx_compiler = "scripts/zcc",
+    linker = "scripts/zcc",
+    visibility = ["PUBLIC"],
+)
+
+system_genrule_toolchain(
+    name = "genrule",
+    visibility = ["PUBLIC"],
+)
+
+system_python_bootstrap_toolchain(
+    name = "python_bootstrap",
+    visibility = ["PUBLIC"],
+)
+
+system_rust_toolchain(
+    name = "rust",
+    default_edition = "2021",
+    rustc_flags = ["-Clinker=scripts/zcc"],
+    visibility = ["PUBLIC"],
+)
