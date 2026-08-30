@@ -1,6 +1,17 @@
 # Vidya for Jolt
 
-These are thin, idiomatic Jolt wrappers around the C ABI in `../raylib`.
+These are thin, idiomatic Jolt wrappers around Vidya's C ABI. Two backends
+implement that ABI, and the bindings are identical for both — pick one with the
+shared-library search path.
+
+**Rust/egui** (`../ffi`) renders through Vidya's own Rust semantic layer:
+
+```sh
+cargo build --manifest-path ../ffi/Cargo.toml --release
+LD_LIBRARY_PATH=../ffi/target/release jolt -M:showcase
+```
+
+**C/raylib** (`../raylib`) is the standalone C implementation:
 
 ```sh
 cmake -S raylib -B raylib/build-cimgui -G Ninja \
@@ -12,7 +23,7 @@ cd jolt
 LD_LIBRARY_PATH=../raylib/build-cimgui jolt -M:app
 ```
 
-On macOS, use `DYLD_LIBRARY_PATH=../raylib/build`.
+On macOS, use `DYLD_LIBRARY_PATH` in place of `LD_LIBRARY_PATH`.
 
 `jolt -M:app` runs the stateful Control Center example. It demonstrates
 cross-frame Jolt atoms, conditional controls, theme switching, settings,

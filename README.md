@@ -44,7 +44,10 @@ An interactive showcase walks through overview, typography, actions, surfaces, p
 ### raylib and Jolt port
 
 The first native C/raylib port lives in [`raylib/`](raylib/README.md), with
-Jolt FFI bindings and a Jolt showcase in [`jolt/`](jolt/README.md). The C ABI
+Jolt FFI bindings and a Jolt showcase in [`jolt/`](jolt/README.md). The same ABI
+is also implemented on **this** crate in [`ffi/`](ffi/README.md), so Jolt can
+render through the Rust/egui layer instead of the C reimplementation — same
+symbols, same bindings, selected by library search path. The C ABI
 keeps raylib types private, so Jolt and Zig callers only exchange primitive
 values and UTF-8 strings. This is an independent backend; the established Rust
 implementation remains available while controls and layout facilities are

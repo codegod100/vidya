@@ -1,0 +1,34 @@
+[package]
+name = "vidya-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "Vidya C ABI backed by the Rust egui implementation"
+license = "MIT"
+publish = false
+
+# Standalone: the repo root is a package, not a workspace.
+[workspace]
+
+# Produces `libvidya.so` / `libvidya.dylib`, matching `raylib/`'s output name so
+# Jolt (and any other FFI consumer) can swap backends by search path alone.
+[lib]
+name = "vidya"
+crate-type = ["cdylib"]
+
+[dependencies]
+# The Rust semantic layer this ABI exposes. Renamed so the cdylib itself can
+# keep the `vidya` lib name.
+vidya_core = { package = "vidya", path = ".." }
+
+# `default_fonts` matters here: the root crate turns egui's defaults off, and a
+# shared library has no host app to install a font set for it.
+egui = { version = "0.31", features = ["default_fonts"] }
+egui-winit = "0.31"
+egui_glow = "0.31"
+glow = "0.16"
+glutin = "0.32"
+glutin-winit = "0.5"
+winit = "0.30"
+
+[profile.release]
+opt-level = 2

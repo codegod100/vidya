@@ -1,6 +1,7 @@
 /target
 /android-demo/target
 /host/target
+/ffi/target
 /.jolt
 /jolt/.jolt
 /jolt/imgui.ini

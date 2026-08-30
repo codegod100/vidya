@@ -15,6 +15,18 @@ host *args:
 lib:
     cargo build --lib
 
+# Rust/egui implementation of the C ABI → ffi/target/release/libvidya.so
+ffi:
+    cargo build --manifest-path ffi/Cargo.toml --release
+
+# Jolt showcase rendered by the Rust/egui backend
+jolt-rust: ffi
+    cd jolt && LD_LIBRARY_PATH=../ffi/target/release jolt -M:showcase
+
+# Stateful Jolt Control Center on the Rust/egui backend
+jolt-rust-app: ffi
+    cd jolt && LD_LIBRARY_PATH=../ffi/target/release jolt -M:app
+
 # APK in android-demo/ → Waydroid
 waydroid:
     ./scripts/waydroid-demo.sh run
