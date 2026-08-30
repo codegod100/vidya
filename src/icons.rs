@@ -403,27 +403,49 @@ pub fn reaction_chip_sized(
         ))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = (icon_size * 0.25).max(2.0);
-                emoji_icon(ui, theme, emoji, icon_size);
-                // The count keeps its place whether or not there is a number
-                // in it: a chip that grew when a second person arrived would
-                // shuffle every chip beside it along the row, and a row of
-                // reactions is something people aim at. Two digits wide, which
-                // is as far as a count usually goes, so one, nine and
-                // ninety-nine are all the same chip.
-                //
-                // A chip counting nobody is not a reaction but an offer of one
-                // — what a picker is made of — and there the slot would only
-                // hang the glyph off to one side of its own pill.
-                if count > 0 {
-                    let text_size = theme.type_scale.caption.min(icon_size);
-                    let (rect, _) = ui
-                        .allocate_exact_size(Vec2::new(text_size * 1.2, icon_size), Sense::hover());
-                    if count > 1 {
+                // Spacing is allocated by hand below, so that a chip showing a
+                // number and one that is not can be laid out to the same width
+                // without the gap between items being counted a different
+                // number of times in each.
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let text_size = theme.type_scale.caption.min(icon_size);
+                let gap = (icon_size * 0.25).max(2.0);
+                // Two digits, which is as far as a reaction count usually
+                // goes, so one, nine and ninety-nine are all the same chip: a
+                // chip that grew when a second person arrived would shuffle
+                // every chip beside it along the row, and a row of reactions is
+                // something people aim at.
+                let slot = text_size * 1.2;
+                let space = |ui: &mut Ui, w: f32| {
+                    if w > 0.0 {
+                        ui.allocate_exact_size(Vec2::new(w, icon_size), Sense::hover());
+                    }
+                };
+                match count {
+                    // Not a reaction but the offer of one — what a picker is
+                    // made of. Nothing to count, so nothing is set aside for a
+                    // count and the glyph has the pill to itself.
+                    0 => {
+                        emoji_icon(ui, theme, emoji, icon_size);
+                    }
+                    // One reactor, and the "1" goes without saying. The room it
+                    // would have taken is split either side of the glyph rather
+                    // than left hanging off the end: the chip is the width of
+                    // one that does show a number, and still centred.
+                    1 => {
+                        space(ui, (gap + slot) / 2.0);
+                        emoji_icon(ui, theme, emoji, icon_size);
+                        space(ui, (gap + slot) / 2.0);
+                    }
+                    n => {
+                        emoji_icon(ui, theme, emoji, icon_size);
+                        space(ui, gap);
+                        let (rect, _) =
+                            ui.allocate_exact_size(Vec2::new(slot, icon_size), Sense::hover());
                         ui.painter().text(
                             rect.center(),
                             Align2::CENTER_CENTER,
-                            count.to_string(),
+                            n.to_string(),
                             FontId::proportional(text_size),
                             p.text,
                         );

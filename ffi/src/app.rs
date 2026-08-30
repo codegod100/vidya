@@ -268,6 +268,54 @@ impl Handler {
     }
 }
 
+/// Put a Ctrl/Cmd+V back into egui's input when it dropped the keystroke.
+///
+/// egui-winit answers a paste shortcut by reading the clipboard's *text* and
+/// pushing an `Event::Paste` with it — and returns there, pushing nothing at
+/// all when the clipboard holds no text. A copied picture is exactly that
+/// case, so the one gesture that means "paste this picture" was the one
+/// gesture egui never heard about.
+///
+/// The key event it would have pushed goes back in. Nothing in egui acts on a
+/// bare Ctrl+V — a text field pastes from `Event::Paste` — so this is inert
+/// except to a caller that goes looking for it, which is what `:entry`'s
+/// `paste-empty` does.
+fn note_paste_shortcut(gl: &mut Gl, event: &WindowEvent) {
+    let WindowEvent::KeyboardInput { event: key, .. } = event else {
+        return;
+    };
+    if !key.state.is_pressed() {
+        return;
+    }
+    let modifiers = gl.winit_state.egui_input().modifiers;
+    if !modifiers.command {
+        return;
+    }
+    // Logical first, physical as the fallback: the same rule egui-winit uses,
+    // so a layout with no Latin V of its own still pastes from where V sits.
+    let logical_v = matches!(
+        &key.logical_key,
+        winit::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("v")
+    );
+    let physical_v = matches!(
+        key.physical_key,
+        winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyV)
+    );
+    if !logical_v && !physical_v {
+        return;
+    }
+    gl.winit_state
+        .egui_input_mut()
+        .events
+        .push(egui::Event::Key {
+            key: egui::Key::V,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        });
+}
+
 impl ApplicationHandler for Handler {
     fn resumed(&mut self, el: &ActiveEventLoop) {
         if self.gl.is_some() {
@@ -289,6 +337,7 @@ impl ApplicationHandler for Handler {
         if let Some(gl) = self.gl.as_mut() {
             // egui sees every event, including the ones handled below.
             let _ = gl.winit_state.on_window_event(&gl.window, &event);
+            note_paste_shortcut(gl, &event);
 
             if let WindowEvent::Resized(size) = event {
                 if size.width > 0 && size.height > 0 {
