@@ -1039,15 +1039,6 @@ impl Tree {
                 if path.is_empty() {
                     return;
                 }
-                // `:fit-height` is the height the picture has been given
-                // rather than one the caller names: a picture on a screen of
-                // its own should fill the window, and how tall the window is
-                // this frame is something only this side knows.
-                let max_height = if props.bool("fit-height", false) {
-                    ui.available_height()
-                } else {
-                    props.num("max-height", 240.0) as f32
-                };
                 let max_width = props.num("max-width", 0.0) as f32;
                 let Some(texture) = self.texture(ui, &path) else {
                     // A file that will not decode is not worth a broken-image
@@ -1056,6 +1047,34 @@ impl Tree {
                     return;
                 };
                 let size = texture.size_vec2();
+
+                // `:fit` gives the picture every point of the space it has
+                // been handed and centres it in it — a picture on a screen of
+                // its own, rather than one in a line of chat. It is the one
+                // case that scales *up*: a picture opened to be looked at is
+                // meant to fill the window, and how big the window is this
+                // frame is something only this side knows. Everywhere else the
+                // caller's `:max-height` bounds it and nothing is enlarged
+                // past its own pixels.
+                if props.bool("fit", false) {
+                    let space = ui.available_size();
+                    if space.x <= 0.0 || space.y <= 0.0 || size.x <= 0.0 || size.y <= 0.0 {
+                        return;
+                    }
+                    let scale = (space.x / size.x).min(space.y / size.y);
+                    let (rect, response) =
+                        ui.allocate_exact_size(space, egui::Sense::click());
+                    let painted =
+                        egui::Rect::from_center_size(rect.center(), size * scale);
+                    egui::Image::new(egui::load::SizedTexture::new(texture.id(), size * scale))
+                        .paint_at(ui, painted);
+                    if response.clicked() {
+                        self.emit(id, "click", String::new(), 0.0);
+                    }
+                    return;
+                }
+
+                let max_height = props.num("max-height", 240.0) as f32;
                 let avail = if max_width > 0.0 {
                     max_width.min(ui.available_width())
                 } else {

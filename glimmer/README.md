@@ -125,6 +125,7 @@ numbers become labels, `nil` children are skipped, seqs are spliced.
 | `:progress` | a bar, `:value` 0.0–1.0, with an optional `:label` |
 | `:spinner` | an indeterminate spinner |
 | `:status` | a live/offline dot beside a label |
+| `:image` | a picture from a file; `:max-height` bounds it, `:fit true` fills and centres it in the space it is given (the one case that scales up) |
 
 **Common props**
 
