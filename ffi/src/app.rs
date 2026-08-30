@@ -442,7 +442,16 @@ impl App {
             ..
         } = self.handler.egui_ctx.end_pass();
         let primitives = self.handler.egui_ctx.tessellate(shapes, pixels_per_point);
-        let clear = egui::Rgba::from(self.handler.theme.palette.window_bg).to_array();
+        // Gamma, not linear: `Painter::clear` hands these straight to
+        // `glClearColor` against an sRGB framebuffer, so a `Rgba::from`
+        // conversion here would be applied twice and the window would clear to
+        // near-black instead of the palette's charcoal.
+        let clear = self
+            .handler
+            .theme
+            .palette
+            .window_bg
+            .to_normalized_gamma_f32();
 
         if let Some(gl) = self.handler.gl.as_mut() {
             gl.winit_state

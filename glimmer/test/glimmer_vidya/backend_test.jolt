@@ -1,0 +1,171 @@
+(ns glimmer-vidya.backend-test
+  "The backend against a real node tree, with no window open.
+
+  Node calls do not need a GL surface — only painting does — so the whole
+  reconcile path can be asserted here: what glimmer creates, what it patches,
+  what it reuses across a reactive change, and what it moves rather than
+  rebuilds. The tree is read back through the same ABI the backend writes it
+  with, so these tests fail if either side of the boundary drifts."
+  (:require [clojure.test :refer [deftest is testing]]
+            [glimmer.core :as ui]
+            [glimmer.ratom :as r]
+            [glimmer-vidya.core :as backend]
+            [glimmer-vidya.ffi :as ffi]))
+
+;; --- reading the tree back ---------------------------------------------------
+(defn- children [node]
+  (mapv #(ffi/node-child-at node %) (range (ffi/node-child-count node))))
+
+(defn- shape
+  "A node as plain data: tag, the props asked for, and its children."
+  ([node] (shape node []))
+  ([node keys]
+   {:tag (ffi/node-tag node)
+    ;; An unset prop reads as the empty string, so it is left out rather than
+    ;; recorded as one — the shape says what a node has, not what it lacks.
+    :props (reduce (fn [acc k]
+                     (let [v (ffi/node-get-str node (name k))]
+                       (if (seq v) (assoc acc k v) acc)))
+                   {}
+                   keys)
+    :children (mapv #(shape % keys) (children node))}))
+
+(defn- tags [node] (mapv ffi/node-tag (children node)))
+(defn- labels [node] (mapv #(ffi/node-get-str % "label") (children node)))
+
+(defn- fresh-root
+  "A detached node to mount into, so tests do not share the window root."
+  []
+  (ffi/node-new "window"))
+
+;; --- the backend operations --------------------------------------------------
+(deftest create-applies-props-in-their-own-types
+  (let [{:keys [create! apply-props!]} backend/backend
+        node (create! :button {:label "go" :kind :primary :sensitive false})]
+    (is (= "button" (ffi/node-tag node)))
+    (is (= "go" (ffi/node-get-str node "label")))
+    (testing "a keyword prop crosses as its name"
+      (is (= "primary" (ffi/node-get-str node "kind"))))
+    (testing "a boolean crosses as a boolean, not as text"
+      (is (false? (ffi/node-get-bool node "sensitive"))))
+
+    (apply-props! :button node {:label "stop"})
+    (is (= "stop" (ffi/node-get-str node "label")))
+    (testing "a prop the re-render stopped setting is gone, not stale"
+      ;; A prop that is not set reads as its zero value, so `sensitive` is
+      ;; false here whether it was cleared or never written. What makes a
+      ;; cleared node sensitive again is the painter's default, not this read.
+      (is (= "" (ffi/node-get-str node "kind")))
+      (is (= 0.0 (ffi/node-get-num node "value"))))))
+
+(deftest numbers-and-handlers-are-kept-apart
+  (let [{:keys [create!]} backend/backend
+        node (create! :progress {:value 0.25 :on-click (fn [] :ignored)})]
+    (is (= 0.25 (ffi/node-get-num node "value")))
+    (testing "a handler is held on this side; it is not a prop"
+      (is (= "" (ffi/node-get-str node "on-click"))))))
+
+(deftest hbox-and-vbox-carry-their-orientation
+  (let [{:keys [create!]} backend/backend]
+    (is (= "horizontal" (ffi/node-get-str (create! :hbox {}) "orientation")))
+    (is (= "vertical" (ffi/node-get-str (create! :vbox {}) "orientation")))
+    (testing "both are one node kind; the tag only implies the prop"
+      (is (= "box" (ffi/node-tag (create! :hbox {})))))
+    (testing "an explicit orientation wins"
+      (is (= "vertical"
+             (ffi/node-get-str (create! :hbox {:orientation :vertical}) "orientation"))))))
+
+(deftest children-are-appended-removed-replaced-and-reordered
+  (let [{:keys [create! append-child! remove-child! replace-child! reorder-child!]}
+        backend/backend
+        box (create! :vbox {})
+        a (create! :label {:label "a"})
+        b (create! :label {:label "b"})
+        c (create! :label {:label "c"})]
+    (append-child! :box box a)
+    (append-child! :box box b)
+    (is (= ["a" "b"] (labels box)))
+
+    (replace-child! :box box b c)
+    (is (= ["a" "c"] (labels box)))
+    (testing "the replaced widget is freed, not merely unparented"
+      (is (false? (ffi/node-exists? b))))
+
+    (let [d (create! :label {:label "d"})]
+      (append-child! :box box d)
+      (reorder-child! :box box d nil)          ; nil sibling = move to the front
+      (is (= ["d" "a" "c"] (labels box)))
+      (reorder-child! :box box d a)            ; after a
+      (is (= ["a" "d" "c"] (labels box)))
+      (remove-child! :box box d)
+      (is (= ["a" "c"] (labels box))))))
+
+(deftest removing-a-container-frees-what-was-inside-it
+  (let [{:keys [create! append-child! remove-child!]} backend/backend
+        root (fresh-root)
+        box (create! :vbox {})
+        leaf (create! :label {:label "gone"})]
+    (append-child! :window root box)
+    (append-child! :box box leaf)
+    (remove-child! :window root box)
+    (is (false? (ffi/node-exists? box)))
+    (is (false? (ffi/node-exists? leaf)))))
+
+;; --- the reconciler on top of it ---------------------------------------------
+(defn- greeting [who]
+  [:vbox {:spacing 6}
+   [:title {:label "hello"}]
+   [:label {:label who}]])
+
+(deftest a_component_mounts_as_native_nodes
+  (let [root (fresh-root)]
+    (ui/mount root :window [greeting "world"])
+    (is (= {:tag "window"
+            :props {}
+            :children [{:tag "box" :props {}
+                        :children [{:tag "title" :props {:label "hello"} :children []}
+                                   {:tag "label" :props {:label "world"} :children []}]}]}
+           (shape root [:label])))))
+
+(deftest a_reactive_change_patches_the_same_node
+  (let [root (fresh-root)
+        who (r/atom "world")]
+    (ui/mount root :window [(fn [] [:label {:label @who}])])
+    (let [node (first (children root))]
+      (is (= "world" (ffi/node-get-str node "label")))
+      (reset! who "glimmer")
+      (testing "the widget is patched in place rather than rebuilt"
+        (is (= [node] (children root)))
+        (is (= "glimmer" (ffi/node-get-str node "label")))))))
+
+(deftest a_changed_tag_replaces_the_widget
+  (let [root (fresh-root)
+        loading? (r/atom true)]
+    (ui/mount root :window [(fn [] (if @loading?
+                                     [:spinner {:label "…"}]
+                                     [:label {:label "done"}]))])
+    (let [before (first (children root))]
+      (is (= "spinner" (ffi/node-tag before)))
+      (reset! loading? false)
+      (is (= ["label"] (tags root)))
+      (is (false? (ffi/node-exists? before))))))
+
+(deftest a_keyed_list_reuses_widgets_across_a_reorder
+  (let [root (fresh-root)
+        items (r/atom [:a :b :c])]
+    (ui/mount root :window
+              [(fn []
+                 (into [:vbox {}]
+                       (for [item @items]
+                         ^{:key item} [:label {:label (name item)}])))])
+    (let [box (first (children root))
+          before (children box)]
+      (is (= ["a" "b" "c"] (labels box)))
+      (reset! items [:c :a :b])
+      (testing "the same three nodes, in a new order"
+        (is (= ["c" "a" "b"] (labels box)))
+        (is (= (set before) (set (children box)))))
+      (testing "and a dropped key takes its widget with it"
+        (reset! items [:c :b])
+        (is (= ["c" "b"] (labels box)))
+        (is (= 2 (ffi/node-child-count box)))))))

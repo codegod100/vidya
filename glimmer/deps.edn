@@ -1,0 +1,33 @@
+{:paths ["src"]
+
+ ;; glimmer-vidya is a backend for glimmer: glimmer owns the reactive core
+ ;; (ratom, component model, reconciler) and knows nothing about any toolkit;
+ ;; this project supplies the widgets, painting and the frame loop by way of
+ ;; Vidya's retained-tree C ABI, and registers them through glimmer.backend.
+ :deps {jolt-lang/glimmer {:git/url "https://github.com/jolt-lang/glimmer"
+                           :git/tag "v0.1.0"
+                           :git/sha "5581c331c51aff989259b9e8e92ec920fe5e6741"}}
+
+ ;; libvidya, built from ../ffi (the Rust/egui implementation). Only that
+ ;; backend implements the tree ABI this project binds — the C/raylib build of
+ ;; libvidya exports vidya.h alone, so it is deliberately NOT interchangeable
+ ;; here, unlike for ../jolt. Put the built library on the search path:
+ ;;   cargo build --manifest-path ../ffi/Cargo.toml --release
+ ;;   LD_LIBRARY_PATH=../ffi/target/release jolt counter
+ :jolt/native [{:name "vidya"
+                :darwin ["libvidya.dylib"]
+                :linux ["libvidya.so"]}]
+
+ :aliases {:test     {:extra-paths ["test"]
+                      :main-opts ["-m" "glimmer-vidya.test-runner"]}
+           :counter  {:extra-paths ["examples"]
+                      :main-opts ["-m" "glimmer-vidya.counter"]}
+           :showcase {:extra-paths ["examples"]
+                      :main-opts ["-m" "glimmer-vidya.showcase"]}
+           :smoke    {:extra-paths ["examples"]
+                      :main-opts ["-m" "glimmer-vidya.smoke"]}}
+
+ :tasks {test     "jolt -M:test"
+         counter  "jolt -M:counter"
+         showcase "jolt -M:showcase"
+         smoke    "jolt -M:smoke"}}

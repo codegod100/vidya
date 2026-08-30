@@ -53,6 +53,17 @@ values and UTF-8 strings. This is an independent backend; the established Rust
 implementation remains available while controls and layout facilities are
 ported incrementally.
 
+### glimmer
+
+[`glimmer/`](glimmer/README.md) is a backend for
+[glimmer](https://github.com/jolt-lang/glimmer), Jolt's reactive toolkit — so
+components written as hiccup, with reagent-style reactive cells, render as Vidya
+widgets. egui has no widgets for a reconciler to patch, so the widget tree lives
+in Rust behind a second C ABI
+([`ffi/include/vidya_tree.h`](ffi/include/vidya_tree.h)) that the
+Rust/egui build alone implements: the caller mutates integer node handles,
+one call a frame paints the whole tree, and interactions come back as events.
+
 ```bash
 nix run                  # apps.default → vidya-demo
 nix run .#demo

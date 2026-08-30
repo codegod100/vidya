@@ -1,0 +1,321 @@
+(ns glimmer-vidya.core
+  "The Vidya/egui backend for glimmer. Requiring this namespace installs it,
+  after which glimmer's portable reconciler renders hiccup into a GPU window:
+
+    (ns myapp
+      (:require [glimmer.ratom :refer [atom]]
+                [glimmer.core :as ui]
+                [glimmer-vidya.core]))        ; installs this backend
+
+    (defn -main [& _] (ui/run my-app :title \"myapp\"))
+
+  egui is an immediate-mode toolkit: it has no widgets to hand a reconciler,
+  only calls you make every frame. So the widget tree lives one layer down, in
+  the Rust library, and this namespace is the thin part — it turns glimmer's
+  create/patch/append/remove into node mutations, runs the frame loop, and
+  routes the events that come back to the handlers the components declared.
+
+  A widget, from the reconciler's point of view, is an integer node handle. It
+  never looks inside one, which is exactly why an id is enough.
+
+  **Handlers do not cross the FFI.** A jolt closure cannot be a callback in a
+  library painting at 60fps, so identity travels instead: a node reports that
+  it was clicked, and the handler map here says whose `:on-click` that was."
+  (:require [glimmer.backend :as b]
+            [glimmer-vidya.ffi :as ffi]))
+
+;; Node id -> the :on-* props that node was last rendered with. Kept here
+;; rather than sent across because a closure has no C representation.
+;;
+;; Ids are recycled by the arena, which is safe only because every id is
+;; written here by `create!` before anything can raise an event against it — a
+;; reused id has its predecessor's handlers overwritten in the same breath.
+(defonce ^:private handlers (atom {}))
+
+;; Work posted from other threads, run on the loop thread at the top of a tick.
+(defonce ^:private pending (atom []))
+
+;; Set by quit!, read by the loop.
+(defonce ^:private quit-requested (atom false))
+
+;; --- props -------------------------------------------------------------------
+;; :hbox and :vbox are one node in the library; the tag only implies an
+;; orientation, and an explicit :orientation prop still wins.
+(def ^:private tag-orientation {:hbox "horizontal" :vbox "vertical"})
+
+(defn- handler-key?
+  "True for a prop that names an event handler rather than a value."
+  [k]
+  (let [s (name k)]
+    (and (> (count s) 3) (= "on-" (subs s 0 3)))))
+
+(defn- set-prop!
+  "Write one prop to a node, in the ABI type that fits its value. nil clears
+  nothing — the prop was already dropped by the clear that precedes a write —
+  and an unrecognized value is stringified rather than refused, so a prop this
+  backend has not learned yet still reaches the library."
+  [node k v]
+  (let [key (name k)]
+    (cond
+      (nil? v)     nil
+      (true? v)    (ffi/node-set-bool! node key true)
+      (false? v)   (ffi/node-set-bool! node key false)
+      (number? v)  (ffi/node-set-num! node key (double v))
+      (string? v)  (ffi/node-set-str! node key v)
+      (keyword? v) (ffi/node-set-str! node key (name v))
+      :else        (ffi/node-set-str! node key (str v)))))
+
+(defn- write-props!
+  "Replace a node's props with `props`.
+
+  Cleared first, deliberately: a re-render that stops setting `:placeholder`
+  means the placeholder is gone, and patching in place would leave the old one
+  behind. It also discards the value the library wrote back when the user typed
+  in an entry or clicked a checkbutton — which is the point. The component's
+  state is the truth, and this is the frame where it says so."
+  [node tag props]
+  (ffi/node-clear-props! node)
+  (when-let [orientation (tag-orientation tag)]
+    (when-not (contains? props :orientation)
+      (ffi/node-set-str! node "orientation" orientation)))
+  (doseq [[k v] props]
+    (when-not (handler-key? k)
+      (set-prop! node k v)))
+  (swap! handlers assoc node
+         (reduce (fn [acc [k v]]
+                   (if (and (handler-key? k) (fn? v)) (assoc acc k v) acc))
+                 {}
+                 props))
+  nil)
+
+(defn- forget-dead-handlers!
+  "Drop handler entries for nodes the library has freed.
+
+  Removing a subtree frees every node under it, and only the library knows
+  which those were — so rather than mirror the tree here to walk it, the map is
+  filtered against what still exists. It runs once per removal, over a map the
+  size of the UI."
+  []
+  (swap! handlers
+         (fn [m]
+           (reduce (fn [acc [id hs]]
+                     (if (ffi/node-exists? id) (assoc acc id hs) acc))
+                   {}
+                   m)))
+  nil)
+
+;; --- the backend operations --------------------------------------------------
+(defn- create!
+  "glimmer.backend's :create!. Children are appended by the reconciler, not
+  here."
+  [tag props]
+  (let [node (ffi/node-new (name tag))]
+    (when (zero? node)
+      (throw (ex-info "vidya could not allocate a node" {:tag tag})))
+    (write-props! node tag props)
+    node))
+
+(defn- apply-props! [tag node props] (write-props! node tag props))
+
+(defn- append-child! [_parent-tag parent child]
+  (ffi/node-append! parent child)
+  nil)
+
+(defn- remove-child! [_parent-tag parent child]
+  ;; The library frees the subtree; glimmer never mentions it again.
+  (ffi/node-remove! parent child)
+  (forget-dead-handlers!)
+  nil)
+
+(defn- replace-child! [_parent-tag parent old-child new-child]
+  (ffi/node-replace! parent old-child new-child)
+  (forget-dead-handlers!)
+  nil)
+
+(defn- reorder-child! [_parent-tag parent child sibling]
+  ;; nil sibling means "first"; the ABI spells that 0.
+  (ffi/node-insert-after! parent child (or sibling 0))
+  nil)
+
+;; --- the UI thread -----------------------------------------------------------
+(defn- schedule
+  "glimmer.backend's :schedule. Every node call belongs to the thread that
+  opened the window, so a ratom mutated on an nREPL worker (or any future)
+  queues its re-render here and the loop performs it on the next tick."
+  [work]
+  (swap! pending conj work)
+  nil)
+
+(defn- drain!
+  "Run everything `schedule` queued. compare-and-set! rather than reset!, so
+  work posted while the queue is being taken is not dropped."
+  []
+  (loop []
+    (let [q @pending]
+      (when (seq q)
+        (if (compare-and-set! pending q [])
+          (doseq [f q] (f))
+          (recur))))))
+
+;; --- timers ------------------------------------------------------------------
+;; A spinner or a clock has to change with nothing being pressed. The loop
+;; already wakes every frame, so a timer is a due time and a thunk. Both
+;; entry points are safe to call from another thread, and both run their thunk
+;; ON the loop thread, the only one allowed to touch nodes.
+(defonce ^:private timers (atom {:next-id 0 :entries {}}))
+
+(defn- now-ms [] (System/currentTimeMillis))
+
+(defn- add-timer! [ms every? f]
+  (let [id (:next-id (swap! timers update :next-id inc))]
+    (swap! timers assoc-in [:entries id]
+           {:due (+ (now-ms) ms) :every (when every? ms) :f f})
+    id))
+
+(defn after!
+  "Run `f` on the loop thread in about `ms` milliseconds. Returns an id for
+  `cancel!`. Resolution is one frame."
+  [ms f] (add-timer! ms false f))
+
+(defn every!
+  "Run `f` on the loop thread about every `ms` milliseconds until cancelled:
+
+    (every! 80 #(swap! tick inc))"
+  [ms f] (add-timer! ms true f))
+
+(defn cancel!
+  "Stop the timer `id`."
+  [id] (swap! timers update :entries dissoc id) nil)
+
+(defn cancel-all!
+  "Stop every timer, so a repeating one does not outlive the UI it animated."
+  [] (swap! timers assoc :entries {}) nil)
+
+(defn- pump-timers! []
+  (let [t (now-ms)
+        due (reduce (fn [acc [id e]] (if (<= (:due e) t) (conj acc [id e]) acc))
+                    []
+                    (:entries @timers))]
+    (doseq [[id e] due]
+      (if-let [period (:every e)]
+        (swap! timers assoc-in [:entries id :due] (+ t period))
+        (swap! timers update :entries dissoc id))
+      ((:f e)))
+    nil))
+
+;; --- events ------------------------------------------------------------------
+(defn- dispatch-events!
+  "Drain the frame's interactions and call the handlers they belong to.
+
+  An event whose node has no handler for it is dropped, which is what makes a
+  control that ignores its own event still work: the library wrote the new
+  state into the node, and the next render either confirms it or overwrites it."
+  []
+  (loop []
+    (when (ffi/poll-event!)
+      (let [node (ffi/event-node)
+            kind (ffi/event-name)
+            hs (get @handlers node)]
+        (case kind
+          "click"    (when-let [f (:on-click hs)] (f))
+          "toggled"  (when-let [f (:on-toggled hs)] (f))
+          ;; The text is read before anything else can overwrite the library's
+          ;; one scratch buffer — jolt copies it as it crosses.
+          "change"   (when-let [f (:on-change hs)] (f (ffi/event-text)))
+          "activate" (when-let [f (:on-activate hs)] (f))
+          nil))
+      (recur))))
+
+;; --- the event loop ----------------------------------------------------------
+(defn- clear-children!
+  "Drop everything under `node`. Removing a child frees it, so this walks the
+  first slot until there is nothing left rather than iterating an index."
+  [node]
+  (loop []
+    (when (pos? (ffi/node-child-count node))
+      (ffi/node-remove! node (ffi/node-child-at node 0))
+      (recur)))
+  (forget-dead-handlers!)
+  nil)
+
+(defn quit!
+  "Stop the running loop and close the window."
+  []
+  (reset! quit-requested true)
+  nil)
+
+(defn- run!
+  "glimmer.backend's :run. Opens a window, mounts the root component into the
+  library's root node, and paints until the window closes or `quit!` is called.
+  Blocks, like every UI main loop.
+
+  Options (on top of glimmer's own):
+    :title :width :height   the window
+    :fps                    frame rate cap (default 60)
+    :mode                   :dark (default) or :light
+    :font                   path to a TTF/OTF to use for UI text
+    :auto-quit-ms           stop after roughly this long — for smoke tests,
+                            which have nobody to close the window
+
+  The window is closed in a finally, so a handler that throws does not leave a
+  GPU surface and an event loop behind."
+  [opts mount-root!]
+  (let [{:keys [title width height fps mode font auto-quit-ms]
+         :or {title "glimmer" width 900 height 640 fps 60}} opts]
+    (when-not (ffi/open! width height title)
+      (throw (ex-info "vidya could not open a window"
+                      {:title title :width width :height height})))
+    (reset! quit-requested false)
+    (ffi/set-target-fps! fps)
+    (ffi/set-mode! (if (= mode :light) ffi/light-mode ffi/dark-mode))
+    (when font (ffi/load-font! font))
+    (let [started (now-ms)
+          root (ffi/tree-root)]
+      (try
+        ;; The library's root outlives a run — it is process-wide, not per
+        ;; window — so a second `ui/run` in one session (a REPL, a test) would
+        ;; otherwise mount its tree alongside the last one's.
+        (clear-children! root)
+        (mount-root! root :window)
+        (reset! b/loop-running? true)
+        (loop []
+          (drain!)
+          (pump-timers!)
+          ;; One call paints the whole tree; the events it produced are read
+          ;; straight after, while the frame that caused them is still the
+          ;; frame the components rendered.
+          (ffi/tree-frame!)
+          (dispatch-events!)
+          (when-not (or @quit-requested
+                        (ffi/should-close?)
+                        (and auto-quit-ms (>= (- (now-ms) started) auto-quit-ms)))
+            (recur)))
+        (finally
+          (reset! b/loop-running? false)
+          (cancel-all!)
+          (ffi/close!)
+          (reset! handlers {}))))))
+
+;; --- the backend -------------------------------------------------------------
+(def backend
+  "The Vidya backend map handed to glimmer.backend/register!. See that
+  namespace for the contract each key satisfies."
+  {:name           :vidya
+   :create!        create!
+   :apply-props!   apply-props!
+   :append-child!  append-child!
+   :remove-child!  remove-child!
+   :replace-child! replace-child!
+   :reorder-child! reorder-child!
+   :schedule       schedule
+   :run            run!})
+
+(defn install!
+  "Make Vidya/egui the backend glimmer renders with. Called on load, so
+  requiring this namespace is enough; exposed for code that wants to be
+  explicit, or to switch back after another backend was installed."
+  []
+  (b/register! backend)
+  nil)
+
+(defonce ^:private installed (do (install!) true))

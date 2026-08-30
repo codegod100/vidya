@@ -51,6 +51,28 @@ Consequence: fractional scaling and per-monitor DPI follow XWayland's rules
 here. Apps that need native Wayland should use the Rust crate directly with
 `eframe`, which has no such constraint.
 
+## A second ABI, for reactive callers
+
+`vidya.h` is push/pop: the caller writes its UI out top to bottom every frame.
+That suits a program with a frame loop and does not suit a reactive toolkit,
+which keeps a component tree, diffs it, and emits create/patch/append/remove
+against native widgets. GTK has widgets to hand such a caller; egui has none.
+
+[`include/vidya_tree.h`](include/vidya_tree.h) is that missing widget layer, and
+`src/tree.rs` implements it. Nodes are integer handles the caller mutates;
+nothing is drawn until `vidya_tree_frame`, which paints the whole tree at once,
+and interactions come back as a queue of events — a callback cannot cross this
+boundary, so identity does instead. It shares the window and the theme with the
+push/pop calls; do not mix the two within one frame.
+
+The glimmer backend built on it lives in [`../glimmer`](../glimmer/README.md).
+Only this backend implements the header: `../raylib` implements `vidya.h` alone,
+so the two builds of `libvidya` are interchangeable everywhere except there.
+
+Painting from a tree the library already holds also removes the limitation
+below, for callers that use it: the recursion *is* the closure `ScrollArea` and
+`Frame` want, so `:page` and `:scroll` nodes scroll normally.
+
 ## Coverage
 
 Everything in `vidya.h` is implemented. Two notes:
@@ -58,8 +80,11 @@ Everything in `vidya.h` is implemented. Two notes:
 * `vidya_load_font`'s `atlas_size` is accepted and ignored — egui rasterizes
   each size on demand rather than from one fixed atlas. The symbol-font
   fallback stays installed, so `→ ● ▾ █` keep rendering.
-* The page is not scrollable: `egui::ScrollArea` has no public push/pop form to
-  hold open across FFI calls. Content taller than the window is clipped.
+* The page is not scrollable *through the push/pop calls*: `egui::ScrollArea`
+  has no public push/pop form to hold open across FFI calls, so content taller
+  than the window is clipped. The tree ABI above has no such problem — it paints
+  from a tree rather than as the calls arrive — so a `:page` or `:scroll` node
+  scrolls.
 
 The grid DSL (`central_page` / `page_body` / `grid_cols`) is not exposed — the
 ABI's flat vertical cursor has no equivalent. Adding it means new ABI calls.

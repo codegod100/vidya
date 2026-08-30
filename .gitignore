@@ -4,6 +4,7 @@
 /ffi/target
 /.jolt
 /jolt/.jolt
+/glimmer/.jolt
 /jolt/imgui.ini
 /raylib/build
 /raylib/build-*

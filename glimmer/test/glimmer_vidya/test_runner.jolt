@@ -1,0 +1,41 @@
+(ns glimmer-vidya.test-runner
+  "Entry point for `jolt -M:test`. Requires each test namespace, runs
+  clojure.test against it, and exits non-zero if anything failed.
+
+  The suite is headless. It links libvidya and builds real node trees through
+  the FFI, but never opens a window: only `vidya_tree_frame` needs a GL
+  surface, so no display is involved."
+  (:require [clojure.test :as t]))
+
+;; Surface full causes on :error — the default report swallows the throwable.
+(defmethod t/report :error [m]
+  (t/with-test-out
+    (t/inc-report-counter :error)
+    (println "\nERROR in" (t/testing-vars-str m))
+    (when (seq t/*testing-contexts*) (println (t/testing-contexts-str)))
+    (when-let [message (:message m)] (println message))
+    (when-let [e (:actual m)]
+      (if (instance? Throwable e)
+        (do (println "  ->" (.getName (class e)) ":" (ex-message e))
+            (when-let [d (ex-data e)] (prn d)))
+        (prn e)))))
+
+(defn- exit [code]
+  (cond
+    (resolve 'jolt.host/exit) ((resolve 'jolt.host/exit) code)
+    (resolve 'System/exit)    ((resolve 'System/exit) code)
+    :else nil))
+
+(defn -main [& _]
+  (let [namespaces '[glimmer-vidya.backend-test]]
+    (doseq [ns namespaces]
+      (try (require ns :reload)
+           (catch Exception e
+             (println "ERROR requiring" ns ":" (ex-message e)))))
+    (let [results (apply t/run-tests namespaces)
+          failed (+ (:fail results 0) (:error results 0))]
+      (println "----")
+      (println "tests:" (:test results 0)
+               "assertions:" (:pass results 0) "passed /"
+               failed "failed")
+      (when (pos? failed) (exit 1)))))

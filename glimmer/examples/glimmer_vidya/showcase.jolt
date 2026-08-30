@@ -1,0 +1,77 @@
+(ns glimmer-vidya.showcase
+  "Every tag this backend paints, in one scrolling page.
+
+  It is also the reconciler's exercise: the task list is a keyed list that is
+  added to, removed from and reordered, so widgets are reused and moved rather
+  than rebuilt."
+  (:require [glimmer.ratom :as r :refer [atom]]
+            [glimmer.core :as ui]
+            [glimmer-vidya.core :as vidya]))
+
+(defonce tasks (atom [{:id 1 :text "Wire egui into glimmer" :done true}
+                      {:id 2 :text "Reconcile a keyed list" :done false}
+                      {:id 3 :text "Ship it" :done false}]))
+(defonce draft (atom ""))
+(defonce next-id (atom 4))
+(defonce progress (atom 0.0))
+(defonce live? (atom true))
+
+(defn- add-task! []
+  (let [text @draft]
+    (when (seq text)
+      (swap! tasks conj {:id (swap! next-id inc) :text text :done false})
+      (reset! draft ""))))
+
+(defn- toggle! [id]
+  (swap! tasks (fn [ts] (mapv #(if (= id (:id %)) (update % :done not) %) ts))))
+
+(defn- drop-task! [id]
+  (swap! tasks (fn [ts] (filterv #(not= id (:id %)) ts))))
+
+(defn task-row [task]
+  [:hbox {:key (:id task) :spacing 12}
+   [:checkbutton {:label (:text task)
+                  :active (:done task)
+                  :on-toggled #(toggle! (:id task))}]
+   [:button {:label "remove"
+             :kind :destructive
+             :on-click #(drop-task! (:id task))}]])
+
+(defn app []
+  [:page {:max-width 620}
+   [:title {:label "Vidya + glimmer"}]
+   [:dim-label {:label "Reactive components, painted by egui."}]
+
+   [:card {}
+    [:title-2 {:label "Tasks"}]
+    (for [task @tasks] [task-row task])
+    (when (empty? @tasks) [:dim-label {:label "Nothing left."}])
+    [:separator {}]
+    [:hbox {:spacing 8}
+     [:entry {:text @draft
+              :width-request 380
+              :placeholder "What needs doing?"
+              :on-change #(reset! draft %)
+              :on-activate add-task!}]
+     [:button {:label "Add" :kind :primary :on-click add-task!}]]]
+
+   [:card {}
+    [:title-2 {:label "Feedback"}]
+    [:status {:label (if @live? "Connected" "Offline") :live @live?}]
+    [:progress {:value @progress :label (str (int (* 100 @progress)) "%")}]
+    [:hbox {:spacing 8}
+     [:button {:label "Toggle connection" :on-click #(swap! live? not)}]
+     [:button {:label "Advance"
+               :on-click #(swap! progress (fn [v] (if (>= v 1.0) 0.0 (+ v 0.2))))}]]]
+
+   [:card {}
+    [:title-2 {:label "Disabled subtree"}]
+    [:vbox {:spacing 6 :sensitive false}
+     [:label {:label "Nothing in here answers to the pointer."}]
+     [:button {:label "Unreachable"}]]]
+
+   [:hbox {:spacing 8}
+    [:button {:label "Quit" :on-click vidya/quit!}]]])
+
+(defn -main [& _]
+  (ui/run app :title "glimmer-vidya showcase" :width 760 :height 720))

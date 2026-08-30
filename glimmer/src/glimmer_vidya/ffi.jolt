@@ -1,0 +1,83 @@
+(ns glimmer-vidya.ffi
+  "Raw bindings for Vidya's retained-tree ABI (`ffi/include/vidya_tree.h`).
+
+  Nothing here interprets a prop or an event; that is
+  `glimmer-vidya.core`'s job. This namespace exists so the boundary is one
+  readable list of symbols, and so the marshalling rules that come with it —
+  which pointers die when, which calls must stay on the window thread — are
+  stated once.
+
+  **Strings returned by this library are borrowed.** `node-get-str`,
+  `event-name` and `event-text` all answer the same scratch buffer, which the
+  next such call overwrites. Jolt copies a `:string` return into a Scheme
+  string as it crosses, so holding the value is safe; holding the *pointer* is
+  not, and there is no way to do that from here anyway.
+
+  **Every call belongs to the thread that opened the window.** The library
+  keeps its state in thread-local storage, so a call from anywhere else is
+  inert rather than unsound — but it is still a bug. `glimmer-vidya.core`
+  routes off-thread work through glimmer's `schedule`."
+  (:require [jolt.ffi :as ffi]))
+
+;; --- window and frame (shared with the push/pop ABI) -------------------------
+(ffi/defcfn raw-open "vidya_open" [:int :int :string] :int)
+(ffi/defcfn close! "vidya_close" [] :void)
+(ffi/defcfn raw-should-close "vidya_should_close" [] :int)
+(ffi/defcfn set-target-fps! "vidya_set_target_fps" [:int] :void)
+(ffi/defcfn set-mode! "vidya_set_mode" [:int] :void)
+(ffi/defcfn raw-load-font "vidya_load_font" [:string :int] :int)
+
+;; --- the tree ----------------------------------------------------------------
+(ffi/defcfn tree-root "vidya_tree_root" [] :int)
+(ffi/defcfn node-new "vidya_node_new" [:string] :int)
+(ffi/defcfn node-free! "vidya_node_free" [:int] :void)
+(ffi/defcfn raw-node-exists "vidya_node_exists" [:int] :int)
+
+(ffi/defcfn node-set-str! "vidya_node_set_str" [:int :string :string] :void)
+(ffi/defcfn node-set-num! "vidya_node_set_num" [:int :string :double] :void)
+(ffi/defcfn raw-node-set-bool "vidya_node_set_bool" [:int :string :int] :void)
+(ffi/defcfn node-clear-props! "vidya_node_clear_props" [:int] :void)
+
+(ffi/defcfn node-get-str "vidya_node_get_str" [:int :string] :string)
+(ffi/defcfn node-get-num "vidya_node_get_num" [:int :string] :double)
+(ffi/defcfn raw-node-get-bool "vidya_node_get_bool" [:int :string] :int)
+
+(ffi/defcfn node-tag "vidya_node_tag" [:int] :string)
+(ffi/defcfn node-child-count "vidya_node_child_count" [:int] :int)
+(ffi/defcfn node-child-at "vidya_node_child_at" [:int :int] :int)
+
+(ffi/defcfn raw-node-append "vidya_node_append" [:int :int] :int)
+(ffi/defcfn node-remove! "vidya_node_remove" [:int :int] :void)
+(ffi/defcfn raw-node-insert-after "vidya_node_insert_after" [:int :int :int] :int)
+(ffi/defcfn raw-node-replace "vidya_node_replace" [:int :int :int] :int)
+
+;; --- frame and events --------------------------------------------------------
+(ffi/defcfn tree-frame! "vidya_tree_frame" [] :void)
+(ffi/defcfn raw-poll-event "vidya_tree_poll_event" [] :int)
+(ffi/defcfn event-node "vidya_tree_event_node" [] :int)
+(ffi/defcfn event-name "vidya_tree_event_name" [] :string)
+(ffi/defcfn event-text "vidya_tree_event_text" [] :string)
+(ffi/defcfn event-num "vidya_tree_event_num" [] :double)
+
+;; --- the int/bool seam -------------------------------------------------------
+;; C has no booleans; every predicate here crosses as 0 or 1. Converting at the
+;; binding rather than at each call site keeps the rest of the backend written
+;; in jolt's own truthiness.
+
+(def dark-mode 0)
+(def light-mode 1)
+
+(defn open!
+  [width height title]
+  (not (zero? (raw-open width height title))))
+
+(defn should-close? [] (not (zero? (raw-should-close))))
+(defn load-font! [path] (not (zero? (raw-load-font path 32))))
+(defn node-exists? [node] (not (zero? (raw-node-exists node))))
+(defn node-set-bool! [node key value] (raw-node-set-bool node key (if value 1 0)))
+(defn node-get-bool [node key] (not (zero? (raw-node-get-bool node key))))
+(defn node-append! [parent child] (not (zero? (raw-node-append parent child))))
+(defn node-insert-after! [parent child sibling]
+  (not (zero? (raw-node-insert-after parent child sibling))))
+(defn node-replace! [parent old new] (not (zero? (raw-node-replace parent old new))))
+(defn poll-event! [] (not (zero? (raw-poll-event))))

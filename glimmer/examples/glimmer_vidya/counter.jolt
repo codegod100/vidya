@@ -1,0 +1,23 @@
+(ns glimmer-vidya.counter
+  "glimmer's counter, rendered by egui.
+
+  The only line that names a toolkit is the backend require — the component
+  below is the one from glimmer's own README."
+  (:require [glimmer.ratom :as r :refer [atom]]
+            [glimmer.core :as ui]
+            [glimmer-vidya.core]))
+
+(defn counter []
+  (let [count (atom 0)]
+    (fn []
+      [:page {:max-width 420}
+       [:card {}
+        [:title {:label "Counter"}]
+        [:label {:label (str "Count: " @count)}]
+        [:hbox {:spacing 8}
+         [:button {:label "- 1" :on-click #(swap! count dec)}]
+         [:button {:label "+ 1" :kind :primary :on-click #(swap! count inc)}]
+         [:button {:label "reset" :on-click #(reset! count 0)}]]]])))
+
+(defn -main [& _]
+  (ui/run counter :title "counter" :width 480 :height 320))

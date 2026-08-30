@@ -1,0 +1,36 @@
+(ns glimmer-vidya.smoke
+  "Non-interactive check against a real window.
+
+  Mounts a tree, drives the reconciler from a timer so widgets are created,
+  patched, reordered and removed while frames are being painted, then quits on
+  its own. `VIDYA_CAPTURE=<path>` writes a frame out as a PPM, which is how a
+  rendering backend gets verified where nobody can look at the screen:
+
+    VIDYA_CAPTURE=/tmp/frame.ppm LD_LIBRARY_PATH=../ffi/target/release jolt smoke"
+  (:require [glimmer.ratom :as r :refer [atom]]
+            [glimmer.core :as ui]
+            [glimmer-vidya.core :as vidya]))
+
+(defonce items (atom [:a :b :c]))
+(defonce ticks (atom 0))
+
+(defn app []
+  [:page {:max-width 480}
+   [:title {:label "smoke"}]
+   [:label {:label (str "tick " @ticks)}]
+   [:card {}
+    (for [item @items]
+      ^{:key item} [:label {:label (str item)}])]])
+
+(defn -main [& _]
+  ;; Reverse the list, drop one, put it back: reorder, remove and create, all
+  ;; against a tree that is being painted at the same time.
+  (vidya/every! 200 (fn []
+                      (swap! ticks inc)
+                      (swap! items (fn [xs]
+                                     (case (mod @ticks 3)
+                                       0 (vec (reverse xs))
+                                       1 (vec (rest xs))
+                                       (vec (cons :a xs)))))))
+  (ui/run app :title "smoke" :width 480 :height 360 :auto-quit-ms 3000)
+  (println "smoke: ok, painted" @ticks "ticks"))

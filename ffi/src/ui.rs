@@ -246,8 +246,17 @@ pub fn status(ui: &mut Ui, theme: &Theme, label: &str, live: bool) {
     });
 }
 
-/// Single-line field over a caller-owned buffer. Returns whether it changed.
-pub fn text_field(ui: &mut Ui, theme: &Theme, text: &mut String, placeholder: &str) -> bool {
+/// Single-line field over a caller-owned buffer.
+///
+/// The whole [`egui::Response`] is returned rather than just "did it change":
+/// the tree backend also needs `lost_focus` to tell Enter from a click
+/// elsewhere. Callers that only want the change flag ask it for `.changed()`.
+pub fn text_field(
+    ui: &mut Ui,
+    theme: &Theme,
+    text: &mut String,
+    placeholder: &str,
+) -> egui::Response {
     let response = vidya_core::text_field_singleline(ui, theme, text);
     if text.is_empty() && !placeholder.is_empty() {
         // `text_field_singleline` has no hint-text parameter; paint one in the
@@ -261,7 +270,7 @@ pub fn text_field(ui: &mut Ui, theme: &Theme, text: &mut String, placeholder: &s
             theme.palette.text_secondary,
         );
     }
-    response.changed()
+    response
 }
 
 /// Checkbox over a caller-owned value. Returns the value after input.
