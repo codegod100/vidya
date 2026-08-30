@@ -79,12 +79,31 @@ impl Stack {
     }
 
     pub fn push_root(&mut self, ctx: &egui::Context) {
+        // The screen rect is the whole display: on Android it runs under the
+        // status bar, the nav band and — when it is up — the soft keyboard.
+        // Insetting the root here is what keeps a focused compose field above
+        // the keyboard, and it costs nothing on desktop, where the insets are
+        // zero.
+        let rect = ctx.screen_rect();
+        #[cfg(target_os = "android")]
+        let rect = {
+            // Not `sync_system_chrome_from_android`: NativeActivity does not
+            // shrink `content_rect` for the soft keyboard, so the measured
+            // insets it installs are the bare bars — and installing them
+            // suppresses the focus-based IME reserve that `system_chrome` falls
+            // back to, which is the one that actually tracks the keyboard here.
+            let chrome = vidya_core::system_chrome(ctx);
+            Rect::from_min_max(
+                egui::pos2(rect.min.x, rect.min.y + chrome.top),
+                egui::pos2(rect.max.x, (rect.max.y - chrome.bottom()).max(rect.min.y)),
+            )
+        };
         let ui = Ui::new(
             ctx.clone(),
             Id::new("vidya_ffi_root"),
             UiBuilder::new()
                 .layer_id(egui::LayerId::background())
-                .max_rect(ctx.screen_rect())
+                .max_rect(rect)
                 .layout(Layout::top_down(Align::Min)),
         );
         self.nodes.push(Node::Region(ui));

@@ -2137,6 +2137,7 @@ version = "0.1.0"
 dependencies = [
  "egui",
  "png 0.17.16",
+ "winit",
  "zip",
 ]
 

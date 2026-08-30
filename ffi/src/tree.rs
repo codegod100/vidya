@@ -540,7 +540,39 @@ impl Tree {
                     "both" => egui::ScrollArea::both(),
                     _ => egui::ScrollArea::vertical(),
                 };
+                // Without a bound a scroll area takes every point left in its
+                // parent, so anything after it — a compose bar under a message
+                // list — is pushed off the bottom. `:max-height` bounds it
+                // outright; `:reserve` bounds it by what it must leave behind,
+                // which is what a caller actually knows: the compose bar's
+                // height, not the window's.
+                let area = {
+                    let reserve = props.num("reserve", 0.0) as f32;
+                    let max_height = if reserve > 0.0 {
+                        // Clamped against the clip rect as well as the layout's
+                        // own idea of what is left: on Android the two differ
+                        // once the soft keyboard takes the bottom of the
+                        // screen, and it is the visible one that has to win or
+                        // the row below the list is pushed off under the
+                        // keyboard.
+                        let visible = (ui.clip_rect().bottom() - ui.cursor().top()).max(0.0);
+                        (ui.available_height().min(visible) - reserve).max(0.0)
+                    } else {
+                        props.num("max-height", 0.0) as f32
+                    };
+                    if max_height > 0.0 {
+                        area.max_height(max_height)
+                    } else {
+                        area
+                    }
+                };
+                // A chat wants the newest line, not the oldest.
+                let area = area.stick_to_bottom(props.bool("stick-to-bottom", false));
+                // Hold the content to the viewport's width, as `:page` does,
+                // so a wrapping child wraps at the visible edge.
+                let viewport_width = ui.available_width();
                 area.auto_shrink([false, false]).show(ui, |ui| {
+                    ui.set_max_width(viewport_width);
                     self.paint_children(id, ui, theme);
                 });
             }
