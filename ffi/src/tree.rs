@@ -54,6 +54,7 @@ pub enum Tag {
     Frame,
     Scroll,
     Label,
+    Link,
     Title,
     Title2,
     DimLabel,
@@ -81,6 +82,7 @@ impl Tag {
             "frame" => Self::Frame,
             "scroll" => Self::Scroll,
             "label" => Self::Label,
+            "link" => Self::Link,
             "title" => Self::Title,
             "title-2" => Self::Title2,
             "dim-label" => Self::DimLabel,
@@ -108,6 +110,7 @@ impl Tag {
             Self::Frame => "frame",
             Self::Scroll => "scroll",
             Self::Label => "label",
+            Self::Link => "link",
             Self::Title => "title",
             Self::Title2 => "title-2",
             Self::DimLabel => "dim-label",
@@ -642,6 +645,26 @@ impl Tree {
             }
 
             Tag::Label => vidya_core::body(ui, theme, props.label()),
+
+            // Body text that answers the pointer: the accent colour and the
+            // hand cursor are the whole affordance, and the click is reported
+            // like a button's so the caller decides what opening it means.
+            Tag::Link => {
+                let response = ui
+                    .add(
+                        egui::Label::new(
+                            egui::RichText::new(props.label())
+                                .size(theme.type_scale.body)
+                                .color(theme.palette.accent),
+                        )
+                        .wrap()
+                        .sense(egui::Sense::click()),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if response.clicked() {
+                    self.emit(id, "click", props.label().to_owned(), 0.0);
+                }
+            }
             Tag::Title => vidya_core::title(ui, theme, props.label()),
             Tag::Title2 => vidya_core::title_2(ui, theme, props.label()),
             Tag::DimLabel => vidya_core::dim_label(ui, theme, props.label()),
@@ -724,10 +747,19 @@ impl Tree {
                     ui.available_width()
                 };
                 let scale = (avail / size.x).min(max_height / size.y).min(1.0);
-                ui.add(
-                    egui::Image::new(egui::load::SizedTexture::new(texture.id(), size * scale))
-                        .corner_radius(theme.spacing.radius_sm),
-                );
+                // Clickable whether or not the caller listens: the tree does
+                // not know which nodes have handlers, and an unheard event
+                // costs a queue slot.
+                let response = ui
+                    .add(
+                        egui::Image::new(egui::load::SizedTexture::new(texture.id(), size * scale))
+                            .corner_radius(theme.spacing.radius_sm)
+                            .sense(egui::Sense::click()),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if response.clicked() {
+                    self.emit(id, "click", String::new(), 0.0);
+                }
             }
 
             Tag::Spinner => {
