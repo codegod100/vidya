@@ -46,7 +46,7 @@ var
 
 func rgb(r, g, b: uint8): Color = Color(r: r, g: g, b: b, a: 255)
 
-func colors(): Palette =
+proc colors(): Palette =
   if mode == Mode.light:
     Palette(
       windowBg: rgb(250, 250, 250), viewBg: rgb(255, 255, 255),

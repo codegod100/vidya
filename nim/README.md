@@ -27,7 +27,7 @@ The larger stateful example is `examples/control_center.nim`.
 From this directory:
 
 ```sh
-nimble build
+nimble lib
 ```
 
 This writes the platform shared library (`build/libvidya.so`,
@@ -58,4 +58,4 @@ run(render, windowTitle = "My application")
 an application needs to own that loop. The `page` and `card` templates restore
 their parent containers even when their bodies raise an exception.
 
-Run `nimble check` to type-check the implementation and examples.
+Run `nimble typecheck` to type-check the implementation and examples.
