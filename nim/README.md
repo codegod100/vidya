@@ -1,29 +1,38 @@
 # Vidya for Nim
 
-This package provides thin, idiomatic Nim bindings for Vidya's C ABI. The
-application owns normal Nim state while Vidya reports control events once per
-frame. Both ABI implementations work unchanged:
+This directory contains a native Nim implementation of Vidya. The theme,
+layout engine, widgets, input handling, and window lifecycle are Nim code;
+raylib is used only for platform drawing and input.
 
-* [`../ffi`](../ffi/README.md) — Rust/egui, Vidya's native semantic layer.
-* [`../raylib`](../raylib/README.md) — the standalone C/raylib implementation.
+The module has two interfaces:
+
+* an idiomatic Nim API for applications that `import vidya`; and
+* the existing `vidya_*` C ABI, exported when the module is built as a shared
+  library, for Jolt, C, Zig, and other callers.
+
+No Nim raylib package is required. The private `vidya/raylib` module declares
+the small raylib ABI surface the implementation needs. A system `libraylib`
+must be available when an application starts.
 
 ## Run the showcase
 
-Build a backend, put its directory on the shared-library search path, and add
-this package's source directory to Nim's import path:
-
 ```sh
-cargo build --manifest-path ffi/Cargo.toml --release
 nim c -r --path:nim/src nim/examples/showcase.nim
 ```
 
-On Linux the second command needs `LD_LIBRARY_PATH=ffi/target/release`; on
-macOS use `DYLD_LIBRARY_PATH`, and on Windows put `vidya.dll` on `PATH`.
-
-To use the C/raylib backend instead, build it as described in its README and
-point the same environment variable at `raylib/build`. No Nim code changes.
-
 The larger stateful example is `examples/control_center.nim`.
+
+## Build `libvidya`
+
+From this directory:
+
+```sh
+nimble build
+```
+
+This writes the platform shared library (`build/libvidya.so`,
+`build/libvidya.dylib`, or `build/vidya.dll`) and exports the ABI described by
+`../raylib/include/vidya.h`.
 
 ## API
 
@@ -49,4 +58,4 @@ run(render, windowTitle = "My application")
 an application needs to own that loop. The `page` and `card` templates restore
 their parent containers even when their bodies raise an exception.
 
-Run `nimble check` in this directory to type-check the module and examples.
+Run `nimble check` to type-check the implementation and examples.

@@ -65,11 +65,14 @@ jolt-rust: ffi
 jolt-rust-app: ffi
     cd jolt && LD_LIBRARY_PATH=../build ../scripts/jolt -M:app
 
-# Nim showcase rendered by the Rust/egui backend
-nim-rust: ffi
-    LD_LIBRARY_PATH=build nim c -r --path:nim/src nim/examples/showcase.nim
+# Native Nim/raylib implementation and showcase
+nim-lib:
+    cd nim && nimble build
 
-# Type-check the Nim bindings and examples
+nim-demo:
+    nim c -r --path:nim/src nim/examples/showcase.nim
+
+# Type-check the Nim implementation and examples
 nim-check:
     cd nim && nimble check
 

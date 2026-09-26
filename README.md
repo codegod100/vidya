@@ -66,9 +66,9 @@ one call a frame paints the whole tree, and interactions come back as events.
 
 ### Nim
 
-[`nim/`](nim/README.md) contains idiomatic Nim bindings for the same C ABI,
-plus small showcase and stateful Control Center examples. The bindings work
-with either the Rust/egui or C/raylib shared library without source changes.
+[`nim/`](nim/README.md) contains a native Nim implementation of the library,
+plus small showcase and stateful Control Center examples. It uses raylib for
+platform drawing and exports the same C ABI as the other backends.
 
 ```bash
 nix run                  # apps.default → vidya-demo
