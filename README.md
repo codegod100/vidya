@@ -64,6 +64,12 @@ in Rust behind a second C ABI
 Rust/egui build alone implements: the caller mutates integer node handles,
 one call a frame paints the whole tree, and interactions come back as events.
 
+### Nim
+
+[`nim/`](nim/README.md) contains idiomatic Nim bindings for the same C ABI,
+plus small showcase and stateful Control Center examples. The bindings work
+with either the Rust/egui or C/raylib shared library without source changes.
+
 ```bash
 nix run                  # apps.default → vidya-demo
 nix run .#demo
