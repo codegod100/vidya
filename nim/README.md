@@ -27,7 +27,7 @@ The larger stateful example is `examples/control_center.nim`.
 From this directory:
 
 ```sh
-nimble lib
+nimble build
 ```
 
 This writes the platform shared library (`build/libvidya.so`,
