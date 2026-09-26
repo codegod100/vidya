@@ -15,8 +15,19 @@ host *args:
 lib:
     cargo build --lib
 
+# Materialize the ignored source tree before Buck tries to load its generated
+# targets. A marker is written only after cargo vendor succeeds, so an
+# interrupted first run is repaired by the next invocation.
+[private]
+ensure-vendor:
+    if [[ ! -f third-party/rust/vendor/.vidya-complete ]]; then \
+        cd third-party/rust && \
+        cargo vendor --locked --versioned-dirs vendor >/dev/null && \
+        touch vendor/.vidya-complete; \
+    fi
+
 # buck2, with the DotSlash-pinned tools (rustc, zig) on PATH.
-buck *args:
+buck *args: ensure-vendor
     PATH="{{justfile_directory()}}/scripts:$PATH" ./scripts/buck2 {{args}}
 
 # Re-vendor third-party crates and regenerate third-party/rust/BUCK.
@@ -28,6 +39,7 @@ buck *args:
 # that the committed BUCK still references.
 vendor:
     cd third-party/rust && cargo vendor --locked --versioned-dirs vendor >/dev/null
+    touch third-party/rust/vendor/.vidya-complete
     mkdir -p third-party/rust/.cargo
     printf '[source.crates-io]\nreplace-with = "vendored-sources"\n\n[source.vendored-sources]\ndirectory = "vendor"\n' \
         > third-party/rust/.cargo/config.toml
