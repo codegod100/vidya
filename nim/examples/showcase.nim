@@ -4,11 +4,11 @@ var enabled = true
 
 proc render() =
   title("Vidya")
-  dimLabel("Nim → C ABI → Vidya")
+  dimLabel("Vidya, implemented in Nim")
   gap(12)
   card:
     title2("Actions")
-    body("The application remains ordinary Nim code.")
+    body("The UI and application are ordinary Nim code.")
     if primaryButton("Primary action"):
       echo "primary action"
     button("Default action")
