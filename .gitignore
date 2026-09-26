@@ -14,5 +14,6 @@
 /demo
 /buck-out
 /build
+/nim/build
 /third-party/rust/vendor
 /third-party/rust/.cargo
